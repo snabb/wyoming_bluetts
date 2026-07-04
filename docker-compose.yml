@@ -1,0 +1,22 @@
+---
+services:
+    bluetts:
+        image: ghcr.io/snabb/wyoming_bluetts:latest
+        container_name: bluetts
+        restart: unless-stopped
+
+    # Bind to a specific interface (e.g. a WireGuard IP) rather than 0.0.0.0
+    # if Home Assistant reaches this host over a VPN/tunnel; adjust or remove
+    # the host part below to bind on all interfaces instead.
+        ports:
+            - 10200:10200/tcp
+
+        volumes:
+            - ./models:/data/models # persists the downloaded ONNX bundle across restarts
+            - ./voices:/share/tts-voices # custom cloned-voice samples / style JSON
+
+        environment:
+            LANGUAGES: en,es,de,it,he
+            DEFAULT_LANGUAGE: en
+            VOICES: female1,male1
+            DEBUG: 'false'

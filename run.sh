@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# Run script for Wyoming BlueTTS add-on
+set -e
+
+CONFIG_PATH=/data/options.json
+
+# `languages`/`voices` are lists; read them as comma-separated strings with jq.
+read_list() {
+    jq -r --arg k "$1" 'if (.[$k] | type) == "array" then (.[$k] | join(","))
+           elif (.[$k] | type) == "string" then .[$k]
+           else "" end' "$CONFIG_PATH" 2>/dev/null
+}
+
+if command -v bashio &> /dev/null; then
+    LANGUAGES=$(read_list languages)
+    DEFAULT_LANGUAGE=$(bashio::config 'default_language')
+    VOICES=$(read_list voices)
+    VOICES_DIR=$(bashio::config 'voices_dir')
+    MODELS_DIR=$(bashio::config 'models_dir')
+    DEBUG=$(bashio::config 'debug')
+else
+    # Fallback to jq for standalone Docker
+    if [ -f "$CONFIG_PATH" ]; then
+        LANGUAGES=$(read_list languages)
+        DEFAULT_LANGUAGE=$(jq -r '.default_language // "en"' "$CONFIG_PATH")
+        VOICES=$(read_list voices)
+        VOICES_DIR=$(jq -r '.voices_dir // "/share/tts-voices"' "$CONFIG_PATH")
+        MODELS_DIR=$(jq -r '.models_dir // "/data/models"' "$CONFIG_PATH")
+        DEBUG=$(jq -r '.debug // false' "$CONFIG_PATH")
+    else
+        # Defaults for standalone usage (also overridable via plain env vars,
+        # e.g. from docker-compose.yml)
+        LANGUAGES="${LANGUAGES:-en,es,de,it,he}"
+        DEFAULT_LANGUAGE="${DEFAULT_LANGUAGE:-en}"
+        VOICES="${VOICES:-}"
+        VOICES_DIR="${VOICES_DIR:-/share/tts-voices}"
+        MODELS_DIR="${MODELS_DIR:-/data/models}"
+        DEBUG="${DEBUG:-false}"
+    fi
+fi
+
+[ "$LANGUAGES" = "null" ] && LANGUAGES="en,es,de,it,he"
+[ "$VOICES" = "null" ] && VOICES=""
+
+mkdir -p "$VOICES_DIR" "$MODELS_DIR"
+
+ARGS=(
+    --host "0.0.0.0"
+    --port "10200"
+    --languages "$LANGUAGES"
+    --default-language "$DEFAULT_LANGUAGE"
+    --voices "$VOICES"
+    --voices-dir "$VOICES_DIR"
+    --models-dir "$MODELS_DIR"
+)
+
+if [ "$DEBUG" = "true" ]; then
+    ARGS+=(--debug)
+fi
+
+echo "========================================"
+echo "Wyoming BlueTTS Server"
+echo "========================================"
+echo "Languages: $LANGUAGES (default: $DEFAULT_LANGUAGE)"
+echo "Voices: ${VOICES:-<all built-in + custom (on demand)>}"
+echo "Voices dir: $VOICES_DIR"
+echo "Models dir: $MODELS_DIR"
+echo "Debug: $DEBUG"
+echo "========================================"
+
+# Function to send discovery info to Home Assistant
+send_discovery() {
+    # Wait for the server to be ready (up to 10 minutes for first model download)
+    local max_wait=600
+    local waited=0
+    echo "Waiting for Wyoming server to be ready for discovery..."
+
+    while [ $waited -lt $max_wait ]; do
+        if echo '{"type":"describe"}' | nc -w 2 localhost 10200 2>/dev/null | grep -q "bluetts"; then
+            echo "Server is ready after ${waited}s"
+            break
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+
+    if [ $waited -ge $max_wait ]; then
+        echo "Warning: Timed out waiting for server to start for discovery"
+        return 1
+    fi
+
+    # Small delay to ensure server is fully ready
+    sleep 1
+
+    # Check if running in Home Assistant (supervisor API available)
+    if [ -n "$SUPERVISOR_TOKEN" ]; then
+        local hostname discovery_host ipv4
+        # Get hostname and convert underscores to hyphens for valid DNS name
+        hostname=$(hostname | tr '_' '-')
+
+        # Prefer advertising our IPv4 address over the hostname. The hassio
+        # network is dual-stack, so the add-on hostname resolves to BOTH an
+        # IPv4 and an IPv6 (ULA) address. Home Assistant Core resolves the
+        # IPv6 first; on hosts with IPv6 disabled (the common case) that
+        # address is unroutable, so Core's connection attempt hangs on a
+        # dropped SYN and times out ("Unable to connect" -> the TTS entity
+        # stays stuck "Initialising"). Advertising the IPv4 address sidesteps
+        # the broken IPv6 path entirely. Fall back to the hostname if we
+        # cannot determine an IPv4 address.
+        ipv4=$(hostname -i 2>/dev/null | tr ' ' '\n' \
+            | grep -E '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' | head -n1)
+        if [ -z "$ipv4" ]; then
+            ipv4=$(getent ahostsv4 "$hostname" 2>/dev/null | awk '{print $1; exit}')
+        fi
+        if [ -n "$ipv4" ]; then
+            discovery_host="$ipv4"
+            echo "Advertising IPv4 address ${ipv4} for discovery (avoids unreachable IPv6 on IPv6-disabled hosts)"
+        else
+            discovery_host="$hostname"
+            echo "Could not determine IPv4 address; falling back to hostname ${hostname} for discovery"
+        fi
+        echo "Sending discovery for host: ${discovery_host}:10200"
+
+        # Retry discovery up to 3 times
+        local retry=0
+        local max_retries=3
+        while [ $retry -lt $max_retries ]; do
+            local response
+            response=$(curl -s -X POST \
+                -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{\"service\": \"wyoming\", \"config\": {\"uri\": \"tcp://${discovery_host}:10200\"}}" \
+                "http://supervisor/discovery" 2>&1)
+
+            if echo "$response" | grep -q '"result".*"ok"'; then
+                echo "Successfully sent discovery information to Home Assistant"
+                return 0
+            else
+                echo "Discovery attempt $((retry + 1)) response: $response"
+                retry=$((retry + 1))
+                sleep 2
+            fi
+        done
+        echo "Warning: Failed to send discovery after ${max_retries} attempts"
+    else
+        echo "Not running in Home Assistant (no SUPERVISOR_TOKEN) - skipping discovery"
+    fi
+}
+
+# Start discovery in background (will wait for server to be ready)
+send_discovery &
+
+# Run the server (packages installed to system Python)
+exec python3 -m wyoming_bluetts "${ARGS[@]}"

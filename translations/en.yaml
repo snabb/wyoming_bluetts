@@ -1,0 +1,44 @@
+---
+# Home Assistant app option names/descriptions shown in the Configuration tab.
+# https://developers.home-assistant.io/docs/add-ons/configuration#translating-add-on-options
+configuration:
+    languages:
+        name: Languages
+        description: >-
+            Languages to advertise to Home Assistant: en, es, de, it, he.
+            Hebrew needs an extra ~small G2P model that is downloaded
+            automatically on first start; if that download fails, Hebrew is
+            silently dropped and the other languages still work.
+    default_language:
+        name: Default language
+        description: >-
+            Language used for a request that doesn't otherwise resolve one.
+            Must be one of the selected Languages.
+    voices:
+        name: Voices to load
+        description: >-
+            Voices to preload (for fast first response) and advertise to Home
+            Assistant. These are the ONLY voices Home Assistant will see.
+            Built-in: female1, male1. Custom voice: drop a precomputed style
+            JSON or a clean 5-15s mono reference .wav (e.g. rocky.wav) in the
+            voices folder and type the filename WITHOUT its extension
+            (rocky). Leave empty to advertise every built-in and custom voice
+            (loaded on demand instead of preloaded).
+    voices_dir:
+        name: Custom voices folder
+        description: >-
+            Folder holding custom voice style JSON (.json) or reference clip
+            (.wav) files. Keep /share/tts-voices for Home Assistant app
+            installs. Cloned-from-wav styles are cached here too, under
+            .bluetts_cache/, so cloning only runs once per voice.
+    models_dir:
+        name: Models folder
+        description: >-
+            Folder where the BlueTTS ONNX model bundle is downloaded and
+            cached. Mainly relevant for standalone Docker users; Home
+            Assistant app installs should leave this at the default.
+    debug:
+        name: Debug logging
+        description: Show verbose logs for troubleshooting.
+network:
+    10200/tcp: Wyoming protocol
