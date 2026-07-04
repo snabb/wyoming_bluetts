@@ -44,6 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `soxr` from `librosa`; `narwhals`/`threadpoolctl` from `scikit-learn`) --
   confirmed via a full `uv.lock` reverse-dependency check that nothing else
   needs them. Default image site-packages: 287 MB -> 240 MB.
+- Removed the `espeak-ng` apt package (+ its own dependencies): confirmed
+  unused at runtime -- `blue_onnx` wires phonemizer-fork directly to
+  `espeakng_loader`'s bundled library/data files, and phonemizer-fork's espeak
+  backend has no subprocess/CLI fallback that would need the system binary.
+  Verified across all 5 languages. ~13 MB saved.
 
 ### Known upstream issues
 

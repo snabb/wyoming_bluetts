@@ -120,11 +120,15 @@ FROM python:3.12-slim-bookworm
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# espeak-ng: phonemizer-fork's CLI-subprocess fallback path needs the binary,
-# even though espeakng-loader bundles its own library for the primary path.
+# No espeak-ng apt package needed: blue_onnx/__init__.py explicitly wires
+# phonemizer-fork to espeakng_loader's own bundled libespeak-ng.so +
+# espeak-ng-data via EspeakWrapper.set_library()/set_data_path() (highest
+# lookup precedence), and phonemizer-fork's espeak backend has no
+# subprocess/CLI fallback anywhere (only its unused Festival backend shells
+# out). Verified by removing espeak-ng + its deps from a running image and
+# confirming both English and Spanish synthesis still work.
 # netcat/jq/curl: healthcheck + run.sh config parsing + HA discovery POST.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    espeak-ng \
     libsndfile1 \
     netcat-openbsd \
     jq \
