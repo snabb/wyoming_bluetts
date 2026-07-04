@@ -1,7 +1,7 @@
 # Home Assistant App: Wyoming BlueTTS
 
-Fast, local, multilingual text-to-speech with zero-shot voice cloning, using
-the [BlueTTS](https://github.com/maxmelichov/BlueTTS) ONNX model. CPU only.
+Fast, local, multilingual text-to-speech using the
+[BlueTTS](https://github.com/maxmelichov/BlueTTS) ONNX model. CPU only.
 
 ## Installation
 
@@ -37,14 +37,19 @@ Both work with every advertised language — BlueTTS voices are
 language-independent style embeddings, unlike some TTS engines where each
 preset voice is tied to one language.
 
-## Custom / cloned voices
+## Custom voices
 
-Drop a file into the `voices_dir` folder (`/share/tts-voices` by default) and
-reference it by filename without its extension:
+Drop a precomputed style JSON file into the `voices_dir` folder
+(`/share/tts-voices` by default) and reference it by filename without its
+extension.
 
-- A precomputed style JSON, or
-- A clean 5-15 second mono reference `.wav` clip — cloned automatically on
-  first use, then cached under `.bluetts_cache/` so cloning only runs once.
+Zero-shot cloning from a `.wav` reference clip is **not available in this
+app** — it needs a large optional dependency chain that's excluded from the
+published build to keep the install small. Requesting a `.wav`-only voice
+name logs a warning and falls back to the default voice instead of failing.
+If you need cloning, run the project's Docker image built with
+`--build-arg ENABLE_VOICE_CLONING=true` instead of installing it as an app
+(see the project's README).
 
 ## Troubleshooting
 

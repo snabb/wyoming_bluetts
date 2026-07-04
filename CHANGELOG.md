@@ -15,11 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Incremental audio streaming (sentence/paragraph-chunk granularity),
   advertised via `supports_synthesize_streaming`.
 - Two built-in preset voices (`female1`, `male1`).
-- Custom voices via precomputed style JSON, or zero-shot cloning from a
-  reference `.wav` clip.
+- Custom voices via precomputed style JSON, or (opt-in, see below) zero-shot
+  cloning from a reference `.wav` clip.
 - Automatic model bundle download (ONNX graphs + optional Hebrew G2P model)
   on first start.
 - Home Assistant app packaging alongside the pip-installable package.
+- `onnx`/`onnxslim` excluded from the Docker image: confirmed unused at
+  runtime, ~40 MB saved.
+- Zero-shot `.wav` voice cloning made opt-in at Docker build time
+  (`--build-arg ENABLE_VOICE_CLONING=true`, default off): its
+  librosa/numba/llvmlite/scipy/scikit-learn/sympy dependency chain is 400+ MB,
+  roughly half the image, for a feature most installs never use. The
+  published image and the Home Assistant app build (which can't pass custom
+  build args through Supervisor) don't include it; precomputed style JSON
+  custom voices still work everywhere, and requesting a `.wav`-only voice
+  without cloning support logs a warning and falls back to the default voice
+  instead of failing. Default image size: 902 MB -> 431 MB.
 
 ### Known upstream issues
 

@@ -11,8 +11,13 @@ from pathlib import Path
 from typing import cast
 
 import blue_onnx
-from blue_onnx.style import VoiceStyleExtractor
 from wyoming.server import AsyncTcpServer
+
+try:
+    # See the matching try/except in handler.py for why this is soft.
+    from blue_onnx.style import VoiceStyleExtractor
+except ImportError:
+    VoiceStyleExtractor = None  # type: ignore[assignment,misc]  # ty:ignore[invalid-assignment]
 
 from . import __version__, models
 from .handler import (
@@ -173,9 +178,17 @@ async def main() -> None:
     )
     _LOGGER.info("BlueTTS engine loaded (sample_rate=%d Hz)", engine.sample_rate)
 
-    style_extractor = VoiceStyleExtractor(
-        onnx_dir=str(models_dir), config=str(models_dir / "tts.json")
-    )
+    if VoiceStyleExtractor is not None:
+        style_extractor = VoiceStyleExtractor(
+            onnx_dir=str(models_dir), config=str(models_dir / "tts.json")
+        )
+    else:
+        style_extractor = None
+        _LOGGER.info(
+            "Zero-shot voice cloning from .wav samples is unavailable in this "
+            "build (librosa/numba dependency chain excluded to keep the image "
+            "small). Precomputed style JSON custom voices still work."
+        )
 
     custom_voice_names = list_custom_voice_names(args.voices_dir)
     if custom_voice_names:
@@ -208,7 +221,9 @@ async def main() -> None:
         ", ".join(requested_languages),
     )
 
-    wyoming_info = get_wyoming_info(advertise, requested_languages)
+    wyoming_info = get_wyoming_info(
+        advertise, requested_languages, supports_cloning=style_extractor is not None
+    )
 
     # Bind all interfaces (IPv4 + IPv6) when host is the wildcard: Home
     # Assistant's hassio network is dual-stack and may resolve the add-on to an

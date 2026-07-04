@@ -8,6 +8,13 @@
 # ============================================
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
+# Zero-shot .wav voice cloning (blue_onnx.style) needs a librosa/numba/llvmlite/
+# scipy/scikit-learn/sympy dependency chain that's 400+ MB -- roughly half the
+# image -- for a feature most installs never use (precomputed style JSON
+# custom voices work fine without it). Off by default to keep the common case
+# small; build with `--build-arg ENABLE_VOICE_CLONING=true` to keep it.
+ARG ENABLE_VOICE_CLONING=false
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # git: blue-onnx is pinned to a git commit via [tool.uv.sources] in
@@ -47,6 +54,30 @@ RUN rm -rf /usr/local/lib/python3.12/site-packages/onnx \
            /usr/local/lib/python3.12/site-packages/onnx-*.dist-info \
            /usr/local/lib/python3.12/site-packages/onnxslim \
            /usr/local/lib/python3.12/site-packages/onnxslim-*.dist-info
+
+# See the ENABLE_VOICE_CLONING ARG comment above. handler.py/__main__.py
+# soft-import blue_onnx.style, so removing it here disables cloning
+# gracefully (logs a warning, falls back to precomputed style JSON) instead
+# of crashing. Re-verify this package list whenever the blue-onnx pin bumps.
+RUN if [ "$ENABLE_VOICE_CLONING" != "true" ]; then \
+        rm -rf /usr/local/lib/python3.12/site-packages/librosa \
+               /usr/local/lib/python3.12/site-packages/librosa-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/numba \
+               /usr/local/lib/python3.12/site-packages/numba-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/llvmlite \
+               /usr/local/lib/python3.12/site-packages/llvmlite-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/scipy \
+               /usr/local/lib/python3.12/site-packages/scipy.libs \
+               /usr/local/lib/python3.12/site-packages/scipy-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/sklearn \
+               /usr/local/lib/python3.12/site-packages/scikit_learn.libs \
+               /usr/local/lib/python3.12/site-packages/scikit_learn-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/sympy \
+               /usr/local/lib/python3.12/site-packages/sympy-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/isympy.py \
+               /usr/local/lib/python3.12/site-packages/mpmath \
+               /usr/local/lib/python3.12/site-packages/mpmath-*.dist-info \
+        ; fi
 
 # ============================================
 # RUNTIME STAGE - Minimal final image

@@ -70,3 +70,19 @@
   BlueTTS's own repo) and `models.ensure_blue_onnx_vocab()` copies it into
   place next to the installed `blue_onnx` package at startup. Re-check this
   is still necessary whenever the `blue-onnx` pin is bumped.
+- **Voice cloning is optional and off by default in the Docker image**:
+  `blue_onnx.style` (zero-shot `.wav` cloning) pulls in a
+  librosa/numba/llvmlite/scipy/scikit-learn/sympy chain that's 400+ MB --
+  roughly half the image. The `Dockerfile`'s `ENABLE_VOICE_CLONING` build arg
+  (default `false`) strips those packages post-install (same "install then
+  `rm -rf`" pattern as the `onnx`/`onnxslim` cleanup above). Because of this,
+  `handler.py` and `__main__.py` both **soft-import** `blue_onnx.style`
+  (`try`/`except ImportError`, mirroring the earlier pattern used while
+  `blue_onnx.style` didn't exist on PyPI at all) -- `style_extractor` can be
+  `None` at runtime in the default image, and `load_voice()`'s `.wav` branch
+  must keep handling that gracefully (log + fall back to the default voice),
+  not assume it's always present. Local `uv sync`/dev installs always have
+  the full dependency set (blue-onnx declares `librosa` unconditionally), so
+  `style_extractor` is only ever `None` in a default-built Docker image, not
+  in dev/tests. When adding new code that touches `style_extractor`, keep it
+  `None`-safe.

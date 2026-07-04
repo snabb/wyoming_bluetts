@@ -9,12 +9,25 @@ from typing import AsyncIterator, Optional, Protocol
 
 import blue_onnx
 from blue_onnx import Style
-from blue_onnx.style import payload_from_style
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.event import Event
 from wyoming.info import Attribution, Describe, Info, TtsProgram, TtsVoice
 from wyoming.server import AsyncEventHandler
 from wyoming.tts import Synthesize, SynthesizeStopped
+
+try:
+    # blue_onnx.style (zero-shot .wav voice cloning) pulls in a heavy
+    # librosa/numba/llvmlite/scipy/scikit-learn/sympy dependency chain
+    # (400+ MB) that's only needed for this one optional feature. The default
+    # Docker image strips those packages at build time (see Dockerfile's
+    # ENABLE_VOICE_CLONING arg) to keep the common case small, so this import
+    # must be soft: cloning support becomes unavailable rather than crashing
+    # the whole server on startup. `uv sync`/local dev installs always have
+    # the full dependency set (blue-onnx declares librosa unconditionally),
+    # so this only actually matters for the Docker image.
+    from blue_onnx.style import payload_from_style
+except ImportError:
+    payload_from_style = None  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +139,7 @@ def _style_cache_path(voices_dir: str, name: str) -> Path:
 
 
 def load_voice(
-    style_extractor: StyleExtractor, name: str, voices_dir: str
+    style_extractor: "StyleExtractor | None", name: str, voices_dir: str
 ) -> "Style | None":
     """Load a voice style by name (preset, custom JSON, or cloned from a wav).
 
@@ -162,6 +175,18 @@ def load_voice(
                 "Cached voice style for %s is unreadable, regenerating", name
             )
 
+    if style_extractor is None:
+        _LOGGER.warning(
+            "Cannot clone voice '%s' from %s: voice cloning is not available in "
+            "this build (the librosa/numba dependency chain was excluded from "
+            "the image; see ENABLE_VOICE_CLONING in the Dockerfile). Use a "
+            "precomputed style JSON instead, or build with "
+            "--build-arg ENABLE_VOICE_CLONING=true.",
+            name,
+            source,
+        )
+        return None
+
     try:
         style = style_extractor.from_wav(str(source))
     except Exception:
@@ -178,7 +203,9 @@ def load_voice(
     return style
 
 
-def get_wyoming_info(voices: list[str], languages: list[str]) -> Info:
+def get_wyoming_info(
+    voices: list[str], languages: list[str], supports_cloning: bool = True
+) -> Info:
     """Create Wyoming info describing available TTS voices."""
     tts_voices = [
         TtsVoice(
@@ -192,6 +219,10 @@ def get_wyoming_info(voices: list[str], languages: list[str]) -> Info:
         for voice in voices
     ]
 
+    description = "BlueTTS - multilingual ONNX text-to-speech"
+    if supports_cloning:
+        description += " with zero-shot voice cloning"
+
     from . import __version__
 
     return Info(
@@ -200,7 +231,7 @@ def get_wyoming_info(voices: list[str], languages: list[str]) -> Info:
                 name="bluetts",
                 attribution=_ATTRIBUTION,
                 installed=True,
-                description="BlueTTS - multilingual ONNX text-to-speech with zero-shot voice cloning",
+                description=description,
                 version=__version__,
                 voices=tts_voices,
                 supports_synthesize_streaming=True,
@@ -267,7 +298,7 @@ class BlueTTSEventHandler(AsyncEventHandler):
         wyoming_info: Info,
         cli_args,
         engine,
-        style_extractor: StyleExtractor,
+        style_extractor: "StyleExtractor | None",
         voice_cache: dict,
         *args,
         **kwargs,

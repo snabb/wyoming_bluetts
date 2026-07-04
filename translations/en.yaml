@@ -20,17 +20,17 @@ configuration:
             Voices to preload (for fast first response) and advertise to Home
             Assistant. These are the ONLY voices Home Assistant will see.
             Built-in: female1, male1. Custom voice: drop a precomputed style
-            JSON or a clean 5-15s mono reference .wav (e.g. rocky.wav) in the
-            voices folder and type the filename WITHOUT its extension
-            (rocky). Leave empty to advertise every built-in and custom voice
-            (loaded on demand instead of preloaded).
+            JSON (e.g. rocky.json) in the voices folder and type the filename
+            WITHOUT its extension (rocky). Leave empty to advertise every
+            built-in and custom voice (loaded on demand instead of preloaded).
     voices_dir:
         name: Custom voices folder
         description: >-
-            Folder holding custom voice style JSON (.json) or reference clip
-            (.wav) files. Keep /share/tts-voices for Home Assistant app
-            installs. Cloned-from-wav styles are cached here too, under
-            .bluetts_cache/, so cloning only runs once per voice.
+            Folder holding custom voice style JSON (.json) files. Keep
+            /share/tts-voices for Home Assistant app installs. Zero-shot
+            cloning from a .wav reference clip is not available in this app
+            (excluded to keep the install small); requesting a .wav-only
+            voice falls back to the default voice.
     models_dir:
         name: Models folder
         description: >-

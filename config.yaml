@@ -5,9 +5,9 @@ name: Wyoming BlueTTS
 version: 0.1.0
 slug: wyoming_bluetts
 description: >-
-    Fast, local, multilingual text-to-speech with zero-shot voice cloning
-    using the BlueTTS ONNX model (English, Spanish, German, Italian, Hebrew).
-    CPU only. Models download automatically on first start.
+    Fast, local, multilingual text-to-speech using the BlueTTS ONNX model
+    (English, Spanish, German, Italian, Hebrew). CPU only. Models download
+    automatically on first start.
 url: https://github.com/snabb/wyoming_bluetts
 arch:
     - amd64

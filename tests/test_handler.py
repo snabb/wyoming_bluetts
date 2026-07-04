@@ -166,6 +166,16 @@ def test_get_wyoming_info_empty_voices():
     assert len(info.tts[0].voices) == 0
 
 
+def test_get_wyoming_info_mentions_cloning_by_default():
+    info = get_wyoming_info(["female1"], ["en"])
+    assert "cloning" in (info.tts[0].description or "")
+
+
+def test_get_wyoming_info_omits_cloning_when_unsupported():
+    info = get_wyoming_info(["female1"], ["en"], supports_cloning=False)
+    assert "cloning" not in (info.tts[0].description or "")
+
+
 # --- load_voice: preset + custom wav cloning cache ----------------------------
 
 
@@ -194,6 +204,12 @@ def test_custom_voice_wav_triggers_style_extractor_and_writes_cache(tmp_path):
     style2 = load_voice(extractor, "cloned", str(tmp_path))
     assert style2 is not None
     assert extractor.from_wav_calls == 1
+
+
+def test_load_voice_wav_without_style_extractor_returns_none_gracefully(tmp_path):
+    """Default (no ENABLE_VOICE_CLONING) images pass style_extractor=None."""
+    (tmp_path / "cloned.wav").write_bytes(b"fake wav data")
+    assert load_voice(None, "cloned", str(tmp_path)) is None
 
 
 # --- streaming synthesis -------------------------------------------------------
@@ -287,6 +303,27 @@ def test_language_resolution_honors_requested_language():
     handler = _RecordingHandler(_FakeEngine(), _FakeStyleExtractor())
     synth = Synthesize(text="hi", voice=SynthesizeVoice(name="female1", language="es"))
     assert handler._resolve_language(synth) == "es"
+
+
+def test_voice_falls_back_gracefully_when_cloning_unavailable(tmp_path):
+    """style_extractor=None (default images): a .wav-only voice request falls
+    back to the default voice instead of crashing, same as any other
+    unavailable-voice fallback."""
+    (tmp_path / "cloned.wav").write_bytes(b"fake wav data")
+    engine = _FakeEngine()
+    handler = _RecordingHandler(engine, None, voices_dir=str(tmp_path))
+
+    result = _run(
+        handler.handle_event(
+            Synthesize(text="hi", voice=SynthesizeVoice(name="cloned")).event()
+        )
+    )
+
+    assert result is True
+    assert engine.calls == ["hi"]
+    chunk_events = [e for e in handler.written if AudioChunk.is_type(e.type)]
+    assert len(chunk_events) >= 1
+    assert SynthesizeStopped.is_type(handler.written[-1].type)
 
 
 def test_voice_fallback_when_requested_voice_unavailable():
