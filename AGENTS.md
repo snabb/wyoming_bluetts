@@ -13,9 +13,18 @@
 - **Terminology**: Home Assistant renamed "add-ons" to "apps" in user-facing
   text (Settings → Apps → Install app → ⋮ → Repositories). Use "app" in
   README/DOCS.md prose. The underlying Supervisor manifest files
-  (`config.yaml`, `build.yaml`, `repository.yaml`) and the
-  developers.home-assistant.io `/docs/add-ons/...` doc URLs are unchanged --
-  don't rename those files or "fix" those URLs.
+  (`config.yaml`, `repository.yaml`) and the developers.home-assistant.io
+  `/docs/add-ons/...` doc URLs are unchanged -- don't rename those files or
+  "fix" those URLs.
+- **No `build.yaml`, on purpose**: Supervisor deprecated `build.yaml` (base
+  image per architecture, build args, labels) in favor of the Dockerfile
+  handling all of that itself. Since Supervisor 2026.04.0 it no longer passes
+  `BUILD_FROM`/`BUILD_ARCH`/`BUILD_VERSION` build-args when `build.yaml` is
+  absent, and a present-but-unparsable `build.yaml` (e.g. a `build_from` value
+  without a `namespace/repo` shape, like a bare `python:3.12-slim-bookworm`)
+  logs a Supervisor warning on every install. Our Dockerfile already hardcodes
+  its `FROM` lines directly and never consumed `BUILD_FROM`, so there's
+  nothing to move -- don't re-add `build.yaml`.
 - The project wraps [BlueTTS](https://github.com/maxmelichov/BlueTTS)
   (`blue-onnx` package). Voice handling (preset + custom + cloning) is in
   `wyoming_bluetts/handler.py`; model auto-download is in
