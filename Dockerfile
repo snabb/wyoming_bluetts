@@ -33,6 +33,21 @@ COPY wyoming_bluetts/ wyoming_bluetts/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --no-deps .
 
+# blue-onnx hard-requires onnx/onnxslim in its own pyproject.toml (for its
+# exports/ conversion tooling, which this project never calls), so there's no
+# resolver flag to skip installing them -- remove them post-install instead.
+# Verified unused: blue_onnx's only two source files (__init__.py, style.py)
+# only ever do `import onnxruntime as ort`; onnxruntime itself doesn't depend
+# on onnx (PyPI metadata), and the only onnx references inside onnxruntime's
+# own package live in optional submodules (quantization/, tools/, backend/,
+# transformers/) that the plain ort.InferenceSession(...) path never imports.
+# Re-verify this whenever the blue-onnx pin in pyproject.toml is bumped, in
+# case a future version starts using them.
+RUN rm -rf /usr/local/lib/python3.12/site-packages/onnx \
+           /usr/local/lib/python3.12/site-packages/onnx-*.dist-info \
+           /usr/local/lib/python3.12/site-packages/onnxslim \
+           /usr/local/lib/python3.12/site-packages/onnxslim-*.dist-info
+
 # ============================================
 # RUNTIME STAGE - Minimal final image
 # ============================================
