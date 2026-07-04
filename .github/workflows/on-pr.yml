@@ -3,7 +3,7 @@ name: On PR
 
 on:
     pull_request:
-        branches: [main]
+        branches: [master]
         types:
             - opened
             - reopened

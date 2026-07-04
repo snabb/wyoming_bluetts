@@ -7,6 +7,10 @@
   (`list`, `dict`, `X | None`).
 - Before committing: run `prek run --all-files` and `uv run -m pytest`. All
   hooks and tests must pass.
+- This repo's default branch is `master`, not `main` (unlike the
+  `wyoming_pocket_tts` template it was copied from). `.github/workflows/on-merge.yml`
+  and `on-pr.yml` must trigger on `master` -- if this drifts back to `main`
+  the ghcr.io image build/push silently never runs again.
 - This is a Wyoming protocol TTS server for Home Assistant. Changes must
   maintain compatibility with the Wyoming protocol and Home Assistant's app
   (Supervisor add-on) system.
