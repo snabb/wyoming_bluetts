@@ -101,6 +101,15 @@ async def main() -> None:
     # internal exceptions it recovers from -- extremely noisy and not
     # actionable, so keep it quiet even when --debug is set.
     logging.getLogger("numba").setLevel(logging.WARNING)
+    # phonemizer's espeak backend logs a "words count mismatch" WARNING
+    # whenever its word-count sanity check trips, which happens routinely
+    # with preserve_punctuation=True (our config) -- e.g. punctuation or
+    # numbers commonly shift the count without indicating a real problem.
+    # This fires unconditionally on every mismatch regardless of phonemizer's
+    # own word-mismatch "mode" (even "ignore" mode still logs the summary via
+    # BaseWordsMismatch._resume()), so the logger level is the only knob.
+    # Synthesis completes correctly either way; silence the noise.
+    logging.getLogger("phonemizer").setLevel(logging.ERROR)
 
     _LOGGER.info("Starting Wyoming BlueTTS server v%s", __version__)
 
