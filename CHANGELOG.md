@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hebrew (`he`) removed from the default `--languages`/`languages` option: it
   needs an extra ~20 MB G2P model download that most installs don't need.
   Still fully supported; add it back explicitly if you want it.
+- Removed `pip` and the now-orphaned transitive dependencies of already-excluded
+  packages (`ml_dtypes` from `onnx`/`onnxslim`; `msgpack`/`audioread`/`decorator`/
+  `lazy_loader`/`pooch`/`platformdirs`/`requests`/`charset_normalizer`/`urllib3`/
+  `soxr` from `librosa`; `narwhals`/`threadpoolctl` from `scikit-learn`) --
+  confirmed via a full `uv.lock` reverse-dependency check that nothing else
+  needs them. Default image site-packages: 287 MB -> 240 MB.
 
 ### Known upstream issues
 

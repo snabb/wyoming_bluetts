@@ -48,17 +48,27 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # on onnx (PyPI metadata), and the only onnx references inside onnxruntime's
 # own package live in optional submodules (quantization/, tools/, backend/,
 # transformers/) that the plain ort.InferenceSession(...) path never imports.
+# ml_dtypes is onnx/onnxslim's own dependency (confirmed via uv.lock: nothing
+# else requires it) so it becomes dead weight the moment they're removed.
+# (pip is also unused at runtime -- see the runtime stage below for why its
+# removal has to happen there instead of here.)
 # Re-verify this whenever the blue-onnx pin in pyproject.toml is bumped, in
 # case a future version starts using them.
 RUN rm -rf /usr/local/lib/python3.12/site-packages/onnx \
            /usr/local/lib/python3.12/site-packages/onnx-*.dist-info \
            /usr/local/lib/python3.12/site-packages/onnxslim \
-           /usr/local/lib/python3.12/site-packages/onnxslim-*.dist-info
+           /usr/local/lib/python3.12/site-packages/onnxslim-*.dist-info \
+           /usr/local/lib/python3.12/site-packages/ml_dtypes \
+           /usr/local/lib/python3.12/site-packages/ml_dtypes-*.dist-info
 
 # See the ENABLE_VOICE_CLONING ARG comment above. handler.py/__main__.py
 # soft-import blue_onnx.style, so removing it here disables cloning
 # gracefully (logs a warning, falls back to precomputed style JSON) instead
-# of crashing. Re-verify this package list whenever the blue-onnx pin bumps.
+# of crashing. Includes librosa/scikit-learn/sympy's own now-orphaned
+# dependencies too (confirmed via uv.lock reverse-dependency check: nothing
+# outside this chain requires them) -- e.g. msgpack/audioread/pooch/soxr/etc.
+# only exist for librosa, narwhals/threadpoolctl only for scikit-learn, mpmath
+# only for sympy. Re-verify this package list whenever the blue-onnx pin bumps.
 RUN if [ "$ENABLE_VOICE_CLONING" != "true" ]; then \
         rm -rf /usr/local/lib/python3.12/site-packages/librosa \
                /usr/local/lib/python3.12/site-packages/librosa-*.dist-info \
@@ -77,6 +87,30 @@ RUN if [ "$ENABLE_VOICE_CLONING" != "true" ]; then \
                /usr/local/lib/python3.12/site-packages/isympy.py \
                /usr/local/lib/python3.12/site-packages/mpmath \
                /usr/local/lib/python3.12/site-packages/mpmath-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/msgpack \
+               /usr/local/lib/python3.12/site-packages/msgpack-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/audioread \
+               /usr/local/lib/python3.12/site-packages/audioread-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/decorator \
+               /usr/local/lib/python3.12/site-packages/decorator-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/lazy_loader \
+               /usr/local/lib/python3.12/site-packages/lazy_loader-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/pooch \
+               /usr/local/lib/python3.12/site-packages/pooch-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/platformdirs \
+               /usr/local/lib/python3.12/site-packages/platformdirs-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/requests \
+               /usr/local/lib/python3.12/site-packages/requests-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/charset_normalizer \
+               /usr/local/lib/python3.12/site-packages/charset_normalizer-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/urllib3 \
+               /usr/local/lib/python3.12/site-packages/urllib3-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/soxr \
+               /usr/local/lib/python3.12/site-packages/soxr-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/narwhals \
+               /usr/local/lib/python3.12/site-packages/narwhals-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/threadpoolctl.py \
+               /usr/local/lib/python3.12/site-packages/threadpoolctl-*.dist-info \
         ; fi
 
 # ============================================
@@ -100,6 +134,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/wyoming-bluetts /usr/local/bin/
+
+# pip ships pre-installed in this base image itself (via ensurepip, unrelated
+# to anything the builder stage installs) and is unused at runtime -- no
+# requirers anywhere in the resolved dependency graph. Must be removed here,
+# not in the builder stage: COPY --from=builder merges into this image's
+# already-existing site-packages rather than replacing it, so a builder-side
+# removal never touches this base image's own copy.
+RUN rm -rf /usr/local/lib/python3.12/site-packages/pip \
+           /usr/local/lib/python3.12/site-packages/pip-*.dist-info
 
 WORKDIR /app
 
