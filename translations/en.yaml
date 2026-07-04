@@ -6,9 +6,10 @@ configuration:
         name: Languages
         description: >-
             Languages to advertise to Home Assistant: en, es, de, it, he.
-            Hebrew needs an extra ~small G2P model that is downloaded
-            automatically on first start; if that download fails, Hebrew is
-            silently dropped and the other languages still work.
+            Hebrew (he) is not selected by default because it needs an extra
+            ~20 MB G2P model download; add it to this list if you want it. If
+            that download fails, Hebrew is silently dropped and the other
+            languages still work.
     default_language:
         name: Default language
         description: >-

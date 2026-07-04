@@ -84,7 +84,7 @@ docker build --build-arg ENABLE_VOICE_CLONING=true -t wyoming-bluetts:cloning .
 | `--voices` | *(empty)* | Comma-separated voices to preload + advertise; empty = advertise all, load on demand |
 | `--voices-dir` | `/share/tts-voices` | Folder for custom voice style JSON / wav samples |
 | `--models-dir` | `/data/models` | Folder for the auto-downloaded ONNX model bundle |
-| `--languages` | `en,es,de,it,he` | Comma-separated languages to advertise |
+| `--languages` | `en,es,de,it` | Comma-separated languages to advertise |
 | `--default-language` | `en` | Language used when a request doesn't resolve one |
 | `--total-step` | `5` | Flow-matching diffusion steps (quality/speed tradeoff) |
 | `--cfg-scale` | `4.0` | Classifier-free guidance scale |
@@ -110,10 +110,12 @@ Custom voices go in `--voices-dir` (default `/share/tts-voices`):
 
 ## Languages
 
-`en`, `es`, `de`, `it`, `he`. Hebrew needs an extra grapheme-to-phoneme model
-(`renikud`), downloaded automatically alongside the main model bundle; if
-that download fails, Hebrew is dropped from the advertised languages and the
-other four still work.
+`en`, `es`, `de`, `it` by default. `he` (Hebrew) is also supported but not
+enabled by default — it needs an extra ~20 MB grapheme-to-phoneme model
+(`renikud`); add it via `--languages en,es,de,it,he` (or your own subset) to
+enable it, and it'll download automatically alongside the main model bundle.
+If that download fails, Hebrew is dropped from the advertised languages and
+the rest still work.
 
 ## Limitations
 

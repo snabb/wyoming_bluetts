@@ -16,7 +16,9 @@ services:
             - ./voices:/share/tts-voices # custom cloned-voice samples / style JSON
 
         environment:
-            LANGUAGES: en,es,de,it,he
+            # Hebrew ("he") needs an extra ~20 MB G2P model download, so it's
+            # left out here; add it (e.g. "en,es,de,it,he") if you need it.
+            LANGUAGES: en,es,de,it
             DEFAULT_LANGUAGE: en
             VOICES: female1,male1
             DEBUG: 'false'

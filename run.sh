@@ -30,7 +30,7 @@ else
     else
         # Defaults for standalone usage (also overridable via plain env vars,
         # e.g. from docker-compose.yml)
-        LANGUAGES="${LANGUAGES:-en,es,de,it,he}"
+        LANGUAGES="${LANGUAGES:-en,es,de,it}"
         DEFAULT_LANGUAGE="${DEFAULT_LANGUAGE:-en}"
         VOICES="${VOICES:-}"
         VOICES_DIR="${VOICES_DIR:-/share/tts-voices}"
@@ -39,7 +39,7 @@ else
     fi
 fi
 
-[ "$LANGUAGES" = "null" ] && LANGUAGES="en,es,de,it,he"
+[ "$LANGUAGES" = "null" ] && LANGUAGES="en,es,de,it"
 [ "$VOICES" = "null" ] && VOICES=""
 
 mkdir -p "$VOICES_DIR" "$MODELS_DIR"

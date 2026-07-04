@@ -44,12 +44,13 @@ map:
 # empty to fall back to advertising every built-in + custom voice (loaded on
 # demand).
 options:
+    # Hebrew ("he") needs an extra ~20 MB G2P model download, so it's left out
+    # of the default; add it to this list if you want Hebrew support.
     languages:
         - en
         - es
         - de
         - it
-        - he
     default_language: en
     voices:
         - female1

@@ -16,17 +16,23 @@ _LOGGER = logging.getLogger(__name__)
 
 BLUETTS_REPO_ID = "notmax123/blue-onnx-v2"
 
-# The core 4 inference graphs + runtime config, plus the 3 extra graphs needed for
-# zero-shot voice cloning (style_from_wav). vocab.json is deliberately NOT listed
-# here: it ships inside the blue-onnx pip package itself (see
-# blue_onnx.load_text_processor(), which hardcodes a path relative to the installed
-# package), not in this Hugging Face repo.
-REQUIRED_BUNDLE_FILES = [
+# The core 4 inference graphs + runtime config. vocab.json is deliberately NOT
+# listed here: it ships inside the blue-onnx pip package itself (see
+# blue_onnx.load_text_processor(), which hardcodes a path relative to the
+# installed package), not in this Hugging Face repo.
+CORE_BUNDLE_FILES = [
     "text_encoder.onnx",
     "vector_estimator.onnx",
     "vocoder.onnx",
     "duration_predictor.onnx",
     "tts.json",
+]
+
+# Only needed for zero-shot voice cloning (blue_onnx.style.VoiceStyleExtractor,
+# ~118 MB). Skipped when that module isn't importable -- the default Docker
+# image (see Dockerfile's ENABLE_VOICE_CLONING) -- since downloading them there
+# would be pure waste: the code to use them isn't even present.
+CLONING_BUNDLE_FILES = [
     "codec_encoder.onnx",
     "style_encoder.onnx",
     "duration_style_encoder.onnx",
@@ -36,21 +42,32 @@ RENIKUD_URL = "https://huggingface.co/thewh1teagle/renikud/resolve/main/model.on
 RENIKUD_FILENAME = "model.onnx"
 
 
-def bundle_is_complete(models_dir: Path) -> bool:
-    """Return True if every file in REQUIRED_BUNDLE_FILES exists under models_dir."""
-    return all((models_dir / name).is_file() for name in REQUIRED_BUNDLE_FILES)
+def _required_files(include_cloning: bool) -> list[str]:
+    return CORE_BUNDLE_FILES + (CLONING_BUNDLE_FILES if include_cloning else [])
 
 
-def ensure_model_bundle(models_dir: Path) -> None:
+def bundle_is_complete(models_dir: Path, include_cloning: bool) -> bool:
+    """Return True if every required file (core, plus cloning if enabled) exists."""
+    return all(
+        (models_dir / name).is_file() for name in _required_files(include_cloning)
+    )
+
+
+def ensure_model_bundle(models_dir: Path, include_cloning: bool) -> None:
     """Download the BlueTTS ONNX bundle into models_dir if it isn't already there.
+
+    ``include_cloning`` should reflect whether ``blue_onnx.style`` is actually
+    importable in this build -- downloading the cloning-only graphs when it
+    isn't would just waste disk space on files the code can't use.
 
     Raises RuntimeError if the bundle is still incomplete after downloading --
     the caller treats this as fatal, since the server cannot serve any request
     without these files.
     """
     models_dir.mkdir(parents=True, exist_ok=True)
+    required = _required_files(include_cloning)
 
-    if bundle_is_complete(models_dir):
+    if bundle_is_complete(models_dir, include_cloning):
         _LOGGER.info("BlueTTS model bundle already present in %s", models_dir)
         return
 
@@ -65,13 +82,11 @@ def ensure_model_bundle(models_dir: Path) -> None:
         repo_id=BLUETTS_REPO_ID,
         repo_type="model",
         local_dir=str(models_dir),
-        allow_patterns=REQUIRED_BUNDLE_FILES,
+        allow_patterns=required,
     )
 
-    if not bundle_is_complete(models_dir):
-        missing = [
-            name for name in REQUIRED_BUNDLE_FILES if not (models_dir / name).is_file()
-        ]
+    if not bundle_is_complete(models_dir, include_cloning):
+        missing = [name for name in required if not (models_dir / name).is_file()]
         raise RuntimeError(
             f"BlueTTS model bundle is incomplete after download; missing: {missing}"
         )

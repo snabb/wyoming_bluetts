@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release: Wyoming protocol server for BlueTTS.
-- Multilingual synthesis (en, es, de, it, he) with language-independent
-  voices.
+- Multilingual synthesis (en, es, de, it, and opt-in he) with
+  language-independent voices.
 - Incremental audio streaming (sentence/paragraph-chunk granularity),
   advertised via `supports_synthesize_streaming`.
 - Two built-in preset voices (`female1`, `male1`).
@@ -31,6 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   custom voices still work everywhere, and requesting a `.wav`-only voice
   without cloning support logs a warning and falls back to the default voice
   instead of failing. Default image size: 902 MB -> 431 MB.
+- The 3 zero-shot-cloning ONNX graphs (~118 MB) are now only downloaded when
+  cloning is actually available in the build, instead of unconditionally --
+  they were previously fetched even in a no-cloning image, where the code to
+  use them isn't even present.
+- Hebrew (`he`) removed from the default `--languages`/`languages` option: it
+  needs an extra ~20 MB G2P model download that most installs don't need.
+  Still fully supported; add it back explicitly if you want it.
 
 ### Known upstream issues
 

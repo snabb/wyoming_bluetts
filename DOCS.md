@@ -19,7 +19,7 @@ Fast, local, multilingual text-to-speech using the
 
 | Option | Default | Description |
 |---|---|---|
-| `languages` | `en, es, de, it, he` | Languages to advertise |
+| `languages` | `en, es, de, it` | Languages to advertise (`he` also supported, not enabled by default -- see below) |
 | `default_language` | `en` | Used when a request doesn't resolve one |
 | `voices` | `female1` | Voices to preload + advertise; empty list = advertise all, load on demand |
 | `voices_dir` | `/share/tts-voices` | Folder for custom voice style JSON / wav samples |
@@ -55,9 +55,9 @@ If you need cloning, run the project's Docker image built with
 
 - **Slow first start**: the model bundle download happens on first boot; check
   the app log for progress. Subsequent starts are fast.
-- **Hebrew missing from the TTS voice's supported languages**: the optional
-  Hebrew G2P model failed to download (check the log); the other four
-  languages are unaffected.
+- **Hebrew missing from the TTS voice's supported languages** (if you added
+  `he` to `languages`): the optional Hebrew G2P model failed to download
+  (check the log); the other languages are unaffected.
 - **Custom voice not found**: check the filename (without extension) matches
   what you typed in `voices`, and that it's a `.json` or `.wav` file directly
   in `voices_dir` (not a subfolder).

@@ -86,3 +86,17 @@
   `style_extractor` is only ever `None` in a default-built Docker image, not
   in dev/tests. When adding new code that touches `style_extractor`, keep it
   `None`-safe.
+- **Model download mirrors the same cloning on/off split**: `models.py` keeps
+  `CORE_BUNDLE_FILES` (always downloaded) separate from `CLONING_BUNDLE_FILES`
+  (the 3 zero-shot-cloning ONNX graphs, ~118 MB) and only fetches the latter
+  when `ensure_model_bundle(..., include_cloning=...)` is called with
+  `include_cloning=True` -- `__main__.py` passes
+  `VoiceStyleExtractor is not None` for this. Downloading the cloning graphs
+  unconditionally would waste disk space in the default (no-cloning) image,
+  since the code to use them isn't even importable there.
+- **Hebrew ("he") is not in the default `--languages`**: it needs an extra
+  ~20 MB G2P (renikud) model download that most installs don't need. It's
+  still fully supported -- pass `--languages ...,he` (or the HA app's
+  `languages` option) to enable it. Keep `DEFAULT_LANGUAGES` in `__main__.py`,
+  `config.yaml`'s `options.languages`, `run.sh`'s fallback defaults, and the
+  `docker-compose.yml` example in sync if this changes again.

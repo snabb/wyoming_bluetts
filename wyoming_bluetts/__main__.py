@@ -30,7 +30,10 @@ from .handler import (
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_LANGUAGES = ",".join(blue_onnx.AVAILABLE_LANGS)
+# Hebrew needs an extra ~20 MB G2P (renikud) model download, so it's left out
+# of the default set -- add it back with --languages en,es,de,it,he (or
+# whichever subset you want) if you need it.
+DEFAULT_LANGUAGES = ",".join(lang for lang in blue_onnx.AVAILABLE_LANGS if lang != "he")
 
 
 async def main() -> None:
@@ -124,7 +127,9 @@ async def main() -> None:
     args.voices_dir = str(voices_dir)
 
     try:
-        models.ensure_model_bundle(models_dir)
+        models.ensure_model_bundle(
+            models_dir, include_cloning=VoiceStyleExtractor is not None
+        )
         models.ensure_blue_onnx_vocab()
     except Exception:
         _LOGGER.critical("Failed to obtain the BlueTTS model bundle", exc_info=True)
