@@ -34,7 +34,12 @@ app packaging, event handler design).
 
 Settings → Apps → Install app → ⋮ (three dots) → Repositories → Add this
 repository's URL, then install "Wyoming BlueTTS" from the store. It
-auto-discovers into Home Assistant via the Wyoming protocol.
+auto-discovers into Home Assistant via the Wyoming protocol. Supervisor pulls
+the same pre-built, Alpine-based image published to `ghcr.io` (see
+[Docker](#docker) below) rather than building locally, so installs and
+updates are fast — but this means the app **does not support zero-shot
+voice cloning** (see [Features](#features)). If you need cloning, install
+standalone via Docker instead, using the `:latest-cloning` image tag.
 
 ### Standalone (uv)
 

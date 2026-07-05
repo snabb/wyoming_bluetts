@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `latest-cloning`/`<version>-cloning`/`<short-sha>-cloning` (in addition to
   the default `Dockerfile`'s `latest`/`<version>`/`<short-sha>`) -- a
   pre-built alternative for voice cloning, no longer strictly "build it
-  yourself." Still not the default: not used by the Home Assistant app, not
-  what `docker-compose.yml` pulls unless you change the tag.
+  yourself." Still not the default: not what `docker-compose.yml` pulls
+  unless you change the tag, and not selectable from the Home Assistant app.
 - CI now runs a real smoke test after publishing: pulls each tag, waits for
   the container's own healthcheck, and sends an actual `Synthesize` request
   over the Wyoming protocol, asserting real audio comes back
@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   touches Docker) ran in CI, so a built image could be broken (like the
   `dash`/`&>` `run.sh` bug from the previous change) without CI ever
   noticing.
+- The Home Assistant app now pulls the pre-built
+  `ghcr.io/snabb/wyoming_bluetts:<version>` image (`config.yaml`'s `image:`)
+  instead of Supervisor building it locally on every install/update -- faster
+  installs, less load on the HA host. Since Supervisor auto-appends
+  `:<version>` from `config.yaml`'s `version` field, every version bump from
+  now on must have a matching image tag already published (CI does this
+  automatically on push) or the app's update check will fail to find it.
+  This app image is Alpine-based, so it still can't support voice cloning --
+  unchanged from before, just now via a pulled image instead of a locally
+  built one.
 
 ## [0.2.0] - 2026-07-05
 

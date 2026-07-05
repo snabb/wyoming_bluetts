@@ -131,7 +131,13 @@
   take the wrong branch -- if you ever reintroduce shell-tool-presence
   detection here, use POSIX `> /dev/null 2>&1`, never `&>`.
 - **`Dockerfile` (Alpine) is the published/default image** -- built by CI,
-  used by the Home Assistant app. A prior investigation (see git history /
+  pulled by the Home Assistant app (`config.yaml`'s `image:` field points
+  Supervisor at `ghcr.io/snabb/wyoming_bluetts`; it auto-appends `:<version>`
+  from `config.yaml`'s own `version` field, so **every version bump there
+  must have a matching image tag already published**, or the app's update
+  check fails to find it -- CI publishes it automatically on push, so bump
+  `config.yaml`'s version in the same commit/push as everything else, never
+  ahead of it). A prior investigation (see git history /
   earlier session notes) ruled Alpine out because `onnxruntime` had zero
   musllinux PyPI wheels -- that's no longer the blocker: Alpine's own
   `community` repo ships native musl builds of `onnxruntime`/`numpy`/`uv`
