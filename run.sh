@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Run script for Wyoming BlueTTS add-on
 set -e
 
@@ -11,32 +11,27 @@ read_list() {
            else "" end' "$CONFIG_PATH" 2>/dev/null
 }
 
-if command -v bashio &> /dev/null; then
+# Home Assistant Supervisor writes /data/options.json for every app
+# regardless of whether bashio is available -- and it never is here, since
+# this project doesn't build from an HA base image (see AGENTS.md's "No
+# build.yaml, on purpose" note). Read it directly with jq; fall back to
+# plain env vars for standalone Docker.
+if [ -f "$CONFIG_PATH" ]; then
     LANGUAGES=$(read_list languages)
-    DEFAULT_LANGUAGE=$(bashio::config 'default_language')
+    DEFAULT_LANGUAGE=$(jq -r '.default_language // "en"' "$CONFIG_PATH")
     VOICES=$(read_list voices)
-    VOICES_DIR=$(bashio::config 'voices_dir')
-    MODELS_DIR=$(bashio::config 'models_dir')
-    DEBUG=$(bashio::config 'debug')
+    VOICES_DIR=$(jq -r '.voices_dir // "/share/tts-voices"' "$CONFIG_PATH")
+    MODELS_DIR=$(jq -r '.models_dir // "/data/models"' "$CONFIG_PATH")
+    DEBUG=$(jq -r '.debug // false' "$CONFIG_PATH")
 else
-    # Fallback to jq for standalone Docker
-    if [ -f "$CONFIG_PATH" ]; then
-        LANGUAGES=$(read_list languages)
-        DEFAULT_LANGUAGE=$(jq -r '.default_language // "en"' "$CONFIG_PATH")
-        VOICES=$(read_list voices)
-        VOICES_DIR=$(jq -r '.voices_dir // "/share/tts-voices"' "$CONFIG_PATH")
-        MODELS_DIR=$(jq -r '.models_dir // "/data/models"' "$CONFIG_PATH")
-        DEBUG=$(jq -r '.debug // false' "$CONFIG_PATH")
-    else
-        # Defaults for standalone usage (also overridable via plain env vars,
-        # e.g. from docker-compose.yml)
-        LANGUAGES="${LANGUAGES:-en,es,de,it}"
-        DEFAULT_LANGUAGE="${DEFAULT_LANGUAGE:-en}"
-        VOICES="${VOICES:-}"
-        VOICES_DIR="${VOICES_DIR:-/share/tts-voices}"
-        MODELS_DIR="${MODELS_DIR:-/data/models}"
-        DEBUG="${DEBUG:-false}"
-    fi
+    # Defaults for standalone usage (also overridable via plain env vars,
+    # e.g. from docker-compose.yml)
+    LANGUAGES="${LANGUAGES:-en,es,de,it}"
+    DEFAULT_LANGUAGE="${DEFAULT_LANGUAGE:-en}"
+    VOICES="${VOICES:-}"
+    VOICES_DIR="${VOICES_DIR:-/share/tts-voices}"
+    MODELS_DIR="${MODELS_DIR:-/data/models}"
+    DEBUG="${DEBUG:-false}"
 fi
 
 [ "$LANGUAGES" = "null" ] && LANGUAGES="en,es,de,it"
@@ -44,18 +39,20 @@ fi
 
 mkdir -p "$VOICES_DIR" "$MODELS_DIR"
 
-ARGS=(
-    --host "0.0.0.0"
-    --port "10200"
-    --languages "$LANGUAGES"
-    --default-language "$DEFAULT_LANGUAGE"
-    --voices "$VOICES"
-    --voices-dir "$VOICES_DIR"
+# POSIX sh has no arrays -- positional parameters via `set --` instead, so
+# this script runs under any /bin/sh (busybox ash on Alpine, dash/bash
+# elsewhere) without requiring bash to be installed just for this.
+set -- \
+    --host "0.0.0.0" \
+    --port "10200" \
+    --languages "$LANGUAGES" \
+    --default-language "$DEFAULT_LANGUAGE" \
+    --voices "$VOICES" \
+    --voices-dir "$VOICES_DIR" \
     --models-dir "$MODELS_DIR"
-)
 
 if [ "$DEBUG" = "true" ]; then
-    ARGS+=(--debug)
+    set -- "$@" --debug
 fi
 
 echo "========================================"
@@ -151,4 +148,4 @@ send_discovery() {
 send_discovery &
 
 # Run the server (packages installed to system Python)
-exec python3 -m wyoming_bluetts "${ARGS[@]}"
+exec python3 -m wyoming_bluetts "$@"

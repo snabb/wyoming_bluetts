@@ -100,6 +100,19 @@
   `languages` option) to enable it. Keep `DEFAULT_LANGUAGES` in `__main__.py`,
   `config.yaml`'s `options.languages`, `run.sh`'s fallback defaults, and the
   `docker-compose.yml` example in sync if this changes again.
+- **`run.sh` is POSIX `sh`, not bash**: shebang is `#!/bin/sh`, and it must
+  stay free of bash-only syntax (arrays, `[[ ]]`, `&>`) so it runs correctly
+  under both `dash` (Debian's `/bin/sh`) and busybox `ash` (Alpine's
+  `/bin/sh`) without needing `bash` installed at all. Build args via
+  `set -- ... ; exec ... "$@"`, not a bash array. There's no `bashio`
+  fallback branch (removed) -- this project never builds from an HA base
+  image (see "No `build.yaml`" above), so `bashio` is never actually present;
+  the plain `jq`-reads-`/data/options.json` path already covers both HA app
+  installs and standalone Docker. A previous version of this script detected
+  bashio via `command -v bashio &> /dev/null`, which is silently misparsed by
+  `dash` (not the bash-only "redirect both stdout+stderr" meaning) and would
+  take the wrong branch -- if you ever reintroduce shell-tool-presence
+  detection here, use POSIX `> /dev/null 2>&1`, never `&>`.
 - **`Dockerfile.alpine` is an experimental side build, not the published
   image**: `Dockerfile` (glibc, `python:3.12-slim-bookworm`) is still what CI
   builds and publishes to `ghcr.io`; `Dockerfile.alpine` exists purely so an
@@ -141,8 +154,10 @@
     needs) get pulled into the runtime stage's apk package set for reasons
     not worth chasing through the resolver -- stripped post-install the same
     way as every other confirmed-dead package in this project's Dockerfiles.
+  - No `bash` needed either, since `run.sh` is POSIX `sh` (see below) --
+    Alpine's built-in busybox `ash` runs it directly.
   - Verified end-to-end (real synthesis, all default languages plus Hebrew):
-    ~286 MB, smaller than the main Dockerfile's ~377 MB. Not yet verified:
+    ~285 MB, smaller than the main Dockerfile's ~377 MB. Not yet verified:
     the `ENABLE_VOICE_CLONING` build arg (main Dockerfile's librosa/
     scikit-learn/sympy opt-in path) -- would need the same apk/pip split
     treatment as everything else here if ever added.

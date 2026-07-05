@@ -93,7 +93,8 @@ RUN apk add --no-cache \
     netcat-openbsd \
     jq \
     curl \
-    bash \
+    # run.sh's shebang is #!/bin/sh (POSIX, no bash-specific syntax), so
+    # Alpine's built-in busybox ash (/bin/sh) runs it fine -- no bash needed.
     # protoc/libprotoc (the protobuf *compiler*, not the runtime libprotobuf/
     # libprotobuf-lite libraries onnxruntime actually needs) get pulled in by
     # this package combination for reasons not worth chasing through apk's

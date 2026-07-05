@@ -49,6 +49,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `espeakng_loader`'s bundled library/data files, and phonemizer-fork's espeak
   backend has no subprocess/CLI fallback that would need the system binary.
   Verified across all 5 languages. ~13 MB saved.
+- `run.sh` rewritten in POSIX `sh` (was bash-specific: array-based argument
+  building, `#!/usr/bin/env bash` shebang), so it no longer requires `bash`
+  to be installed -- notably enabling the experimental Alpine build below to
+  drop it. Also removed a dead `bashio` code path (this project never builds
+  from an HA base image, so `bashio` is never actually present) that used
+  bash-only `&>` redirection; under `dash` (Debian's `/bin/sh`) that redirect
+  was silently misparsed and would have made the script take the (nonexistent)
+  bashio branch and crash, a latent bug only surfaced by this rewrite and
+  fixed as part of it.
+- Added `Dockerfile.alpine`: an experimental Alpine-based image, kept fully
+  separate from the published `Dockerfile`/CI so it can't regress the working
+  build. ~285 MB vs. the main image's ~377 MB. See `AGENTS.md` for the
+  workarounds it needed (a shim for `espeakng_loader`'s glibc-only bundled
+  library, avoiding double-installing onnxruntime/numpy's Python files across
+  build stages, and an install-ordering fix for a stray `sympy` reinstall).
 
 ### Known upstream issues
 
