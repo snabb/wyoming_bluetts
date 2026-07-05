@@ -55,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `labels` and `annotations` outputs are independent -- overriding one does
   not override the other -- so both inputs need setting; overriding only
   `labels` fixes the per-platform image's own description but leaves the
+  index's the same.
+- phonemizer's "words count mismatch" WARNING still appeared on every
+  synthesis request despite an earlier attempt to silence it via
+  `setLevel(logging.ERROR)` at startup: `blue_onnx` lazily constructs
+  `EspeakBackend` on first use per language, which resets that same logger
+  back to `WARNING` internally. Fixed with a `logging.Filter`, which isn't
+  reset that way.
   published index's (what GHCR's package page and `docker buildx imagetools
   inspect` actually show) on the old, shared text.
 

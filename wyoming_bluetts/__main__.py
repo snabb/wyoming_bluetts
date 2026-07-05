@@ -115,9 +115,25 @@ async def main() -> None:
     # numbers commonly shift the count without indicating a real problem.
     # This fires unconditionally on every mismatch regardless of phonemizer's
     # own word-mismatch "mode" (even "ignore" mode still logs the summary via
-    # BaseWordsMismatch._resume()), so the logger level is the only knob.
-    # Synthesis completes correctly either way; silence the noise.
+    # BaseWordsMismatch._resume()), so the logger level is the only knob --
+    # except setLevel() alone doesn't stick: blue_onnx never passes phonemizer
+    # a custom logger, so EspeakBackend.__init__ calls
+    # phonemizer.logger.get_logger() the first time it's lazily constructed
+    # (on the first synthesis request per language) which unconditionally
+    # does logging.getLogger("phonemizer").setLevel(logging.WARNING),
+    # silently reverting this line the moment real synthesis happens. A
+    # logging.Filter isn't reset that way (get_logger() never touches
+    # logger.filters), so it's the part that actually suppresses the noise in
+    # production; the setLevel() call is kept too as a (harmless, if
+    # ultimately overridden) belt-and-braces default for any log record that
+    # doesn't go through this exact path.
     logging.getLogger("phonemizer").setLevel(logging.ERROR)
+
+    class _SuppressWordsMismatch(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return "words count mismatch" not in record.getMessage()
+
+    logging.getLogger("phonemizer").addFilter(_SuppressWordsMismatch())
 
     _LOGGER.info("Starting Wyoming BlueTTS server v%s", __version__)
 
