@@ -60,9 +60,10 @@ docker run --rm -p 10200:10200 \
 ```
 
 See [docker-compose.yml](docker-compose.yml) for a persistent deployment
-example, including binding to a specific interface (e.g. a WireGuard IP) if
-Home Assistant reaches this host over a VPN. Add it in Home Assistant via
-Settings → Devices & Services → Add integration → "Wyoming Protocol".
+example, including a comment showing how to bind to a specific interface
+(e.g. a WireGuard IP) instead of all interfaces, if Home Assistant reaches
+this host over a VPN. Add it in Home Assistant via Settings → Devices &
+Services → Add integration → "Wyoming Protocol".
 
 The published image (and the Home Assistant app, which builds from the same
 `Dockerfile`) is Alpine-based — smaller than a typical glibc image, but it
