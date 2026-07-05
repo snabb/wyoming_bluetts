@@ -33,6 +33,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged from before, just now via a pulled image instead of a locally
   built one.
 
+### Fixed
+
+- GHCR's package page showed "No description provided" for every published
+  tag despite `docker/metadata-action` generating full OCI labels: those
+  labels only ever reached each per-platform image's own config, not the
+  multi-arch manifest list/index `docker buildx imagetools create` builds
+  from their digests -- GHCR reads the index's own annotations for the
+  package page, and `imagetools create` doesn't copy labels from the source
+  images into a new index automatically. Now passes metadata-action's
+  `annotations` output through as `--annotation "index:..."` on the merge
+  step. Also drops `org.opencontainers.image.licenses` (misleading as a
+  single label on an image bundling many differently-licensed components)
+  from both the per-platform labels and the index annotations, while keeping
+  `org.opencontainers.image.source`.
+
 ## [0.2.0] - 2026-07-05
 
 ### Added

@@ -60,6 +60,22 @@ jobs:
               with:
                   images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
+            # metadata-action auto-generates org.opencontainers.image.licenses
+            # from repo detection, which ends up meaningless/misleading for a
+            # multi-stage image bundling many differently-licensed components
+            # (Alpine or Debian base, onnxruntime, numpy, etc.) under one
+            # label -- drop it rather than assert a single license for the
+            # whole image. org.opencontainers.image.source is generated too
+            # and kept as-is (it's just the repo URL, unambiguous).
+            - name: Filter out the licenses label
+              id: labels
+              run: |
+                  {
+                      echo "labels<<LABELS_EOF"
+                      grep -v '^org\.opencontainers\.image\.licenses=' <<< "${{ steps.meta.outputs.labels }}"
+                      echo "LABELS_EOF"
+                  } >> "$GITHUB_OUTPUT"
+
             - name: Build and push by digest
               id: build
               uses: docker/build-push-action@v7
@@ -67,7 +83,7 @@ jobs:
                   context: .
                   file: ${{ matrix.dockerfile }}
                   platforms: ${{ matrix.platform }}
-                  labels: ${{ steps.meta.outputs.labels }}
+                  labels: ${{ steps.labels.outputs.labels }}
                   outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
                   cache-from: type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }}
                   cache-to: type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }},mode=max
@@ -139,8 +155,33 @@ jobs:
             - name: Create manifest list and push
               working-directory: /tmp/digests
               run: |
+                  # `imagetools create` doesn't copy labels from the source
+                  # per-platform images into the new index it builds -- the
+                  # index needs its own annotations, or GHCR's package page
+                  # shows "No description provided" even though the images
+                  # underneath have full OCI labels. metadata-action's own
+                  # `annotations` output is pre-formatted for exactly this
+                  # (just with a `manifest:` scope prefix instead of the
+                  # `index:` scope imagetools expects for the top-level index).
+                  TAGS=()
+                  while IFS= read -r tag; do
+                      TAGS+=(-t "$tag")
+                  done < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+
+                  # Same licenses-label omission as the build job's "Filter
+                  # out the licenses label" step, for the index itself.
+                  ANNOTATIONS=()
+                  while IFS= read -r annotation; do
+                      key="${annotation#manifest:}"
+                      case "$key" in
+                          org.opencontainers.image.licenses=*) continue ;;
+                      esac
+                      ANNOTATIONS+=(--annotation "index:$key")
+                  done < <(jq -r '.annotations[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+
                   docker buildx imagetools create \
-                    $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+                    "${TAGS[@]}" \
+                    "${ANNOTATIONS[@]}" \
                     $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
             - name: Inspect image
