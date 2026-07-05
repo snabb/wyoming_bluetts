@@ -51,8 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (metadata-action auto-generates it from the GitHub repo's own
   description, which mentions voice cloning) -- wrong on the default
   (Alpine, non-cloning) image. Both `build` and `merge` jobs now override it
-  per variant via a `description` matrix property, so the non-cloning image's
-  description no longer claims a feature it doesn't have.
+  per variant via a `description` matrix property. `docker/metadata-action`'s
+  `labels` and `annotations` outputs are independent -- overriding one does
+  not override the other -- so both inputs need setting; overriding only
+  `labels` fixes the per-platform image's own description but leaves the
+  published index's (what GHCR's package page and `docker buildx imagetools
+  inspect` actually show) on the old, shared text.
 
 ## [0.2.0] - 2026-07-05
 

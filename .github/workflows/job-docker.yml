@@ -67,7 +67,11 @@ jobs:
               uses: docker/metadata-action@v6
               with:
                   images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                  # `labels` and `annotations` are separate outputs -- overriding
+                  # one does NOT override the other, so both are needed here.
                   labels: |
+                      org.opencontainers.image.description=${{ matrix.description }}
+                  annotations: |
                       org.opencontainers.image.description=${{ matrix.description }}
 
             # metadata-action auto-generates org.opencontainers.image.licenses
@@ -163,9 +167,14 @@ jobs:
                   # version/commit.
                   tags: |
                       type=raw,value=${{ matrix.variant == 'cloning' && 'latest-cloning' || 'latest' }}
-                      type=raw,value=${{ steps.version.outputs.version }}${{ matrix.variant == 'cloning' && '-cloning' || '' }}
                       type=raw,value=${{ steps.version.outputs.short_sha }}${{ matrix.variant == 'cloning' && '-cloning' || '' }}
+                  # `labels` and `annotations` are separate outputs -- overriding
+                  # one does NOT override the other. This job only actually
+                  # uses `.annotations` below (for the index), but setting
+                  # `labels` too keeps this step's output consistent/inspectable.
                   labels: |
+                      org.opencontainers.image.description=${{ matrix.description }}
+                  annotations: |
                       org.opencontainers.image.description=${{ matrix.description }}
 
             - name: Create manifest list and push
