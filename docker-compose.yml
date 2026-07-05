@@ -1,6 +1,9 @@
 ---
 services:
     bluetts:
+        # Alpine-based (published default); doesn't support zero-shot .wav
+        # voice cloning. For that, build Dockerfile.cloning yourself and
+        # point image/build at it instead -- see README.md.
         image: ghcr.io/snabb/wyoming_bluetts:latest
         container_name: bluetts
         restart: unless-stopped

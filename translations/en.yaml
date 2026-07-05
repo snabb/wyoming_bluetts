@@ -30,8 +30,9 @@ configuration:
             Folder holding custom voice style JSON (.json) files. Keep
             /share/tts-voices for Home Assistant app installs. Zero-shot
             cloning from a .wav reference clip is not available in this app
-            (excluded to keep the install small); requesting a .wav-only
-            voice falls back to the default voice.
+            (this app is built on Alpine Linux, which can't support that
+            feature's dependencies); requesting a .wav-only voice falls back
+            to the default voice.
     models_dir:
         name: Models folder
         description: >-

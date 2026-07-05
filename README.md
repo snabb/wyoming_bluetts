@@ -21,8 +21,8 @@ app packaging, event handler design).
   Home Assistant plays audio as it arrives instead of after the whole clip is
   ready.
 - **Zero-shot voice cloning** from a short reference `.wav` clip (see
-  [Voices](#voices) below) — opt-in at build time, off by default (see
-  [Docker](#docker)).
+  [Voices](#voices) below) — not available in the default (Alpine) image;
+  build [`Dockerfile.cloning`](#docker) yourself if you need it.
 - **CPU only**: ONNX Runtime, no PyTorch dependency, no GPU required.
 - **Models download automatically** on first start.
 - Ships both as a pip-installable Python package and a Home Assistant app.
@@ -64,15 +64,18 @@ example, including binding to a specific interface (e.g. a WireGuard IP) if
 Home Assistant reaches this host over a VPN. Add it in Home Assistant via
 Settings → Devices & Services → Add integration → "Wyoming Protocol".
 
-The published image (and the Home Assistant app build, which can't pass
-custom build args through Supervisor) excludes zero-shot `.wav` voice
-cloning — that one feature needs a `librosa`/`numba`/`llvmlite`/`scipy`/
-`scikit-learn` dependency chain that's 400+ MB, roughly half the image, for
-a feature most installs never use. Precomputed style JSON custom voices
-still work in every build. To get cloning, build the image yourself:
+The published image (and the Home Assistant app, which builds from the same
+`Dockerfile`) is Alpine-based — smaller than a typical glibc image, but it
+can't support zero-shot `.wav` voice cloning: that feature needs a
+`librosa`/`numba`/`llvmlite`/`scipy`/`scikit-learn` dependency chain, and
+`numba`/`llvmlite` don't build on musl (see [AGENTS.md](AGENTS.md)).
+Precomputed style JSON custom voices work in every build regardless.
+
+If you need cloning, build [`Dockerfile.cloning`](Dockerfile.cloning)
+instead (glibc-based, cloning on by default):
 
 ```bash
-docker build --build-arg ENABLE_VOICE_CLONING=true -t wyoming-bluetts:cloning .
+docker build -f Dockerfile.cloning -t wyoming-bluetts:cloning .
 ```
 
 ## Configuration (CLI flags)
@@ -103,10 +106,10 @@ Custom voices go in `--voices-dir` (default `/share/tts-voices`):
 - A clean, 5-15 second mono reference `.wav` clip, cloned automatically on
   first use via zero-shot voice conversion, then cached to
   `<voices-dir>/.bluetts_cache/<name>.json` so cloning only runs once. Only
-  available in a build with `--build-arg ENABLE_VOICE_CLONING=true` (see
-  [Docker](#docker)) — the published image and the Home Assistant app don't
-  include it, and log a clear warning and fall back to the default voice if
-  a `.wav`-only voice is requested.
+  available in a build from [`Dockerfile.cloning`](Dockerfile.cloning) (see
+  [Docker](#docker)) — the published (Alpine) image and the Home Assistant
+  app can't support it at all, and log a clear warning and fall back to the
+  default voice if a `.wav`-only voice is requested.
 
 ## Languages
 

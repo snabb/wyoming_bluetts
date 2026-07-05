@@ -70,30 +70,32 @@
   BlueTTS's own repo) and `models.ensure_blue_onnx_vocab()` copies it into
   place next to the installed `blue_onnx` package at startup. Re-check this
   is still necessary whenever the `blue-onnx` pin is bumped.
-- **Voice cloning is optional and off by default in the Docker image**:
-  `blue_onnx.style` (zero-shot `.wav` cloning) pulls in a
-  librosa/numba/llvmlite/scipy/scikit-learn/sympy chain that's 400+ MB --
-  roughly half the image. The `Dockerfile`'s `ENABLE_VOICE_CLONING` build arg
-  (default `false`) strips those packages post-install (same "install then
-  `rm -rf`" pattern as the `onnx`/`onnxslim` cleanup above). Because of this,
-  `handler.py` and `__main__.py` both **soft-import** `blue_onnx.style`
-  (`try`/`except ImportError`, mirroring the earlier pattern used while
-  `blue_onnx.style` didn't exist on PyPI at all) -- `style_extractor` can be
-  `None` at runtime in the default image, and `load_voice()`'s `.wav` branch
-  must keep handling that gracefully (log + fall back to the default voice),
-  not assume it's always present. Local `uv sync`/dev installs always have
-  the full dependency set (blue-onnx declares `librosa` unconditionally), so
-  `style_extractor` is only ever `None` in a default-built Docker image, not
-  in dev/tests. When adding new code that touches `style_extractor`, keep it
-  `None`-safe.
+- **Two Dockerfiles, two roles**: `Dockerfile` (Alpine) is the published
+  default -- built by CI, used by the Home Assistant app, pulled by
+  `docker-compose.yml`. It cannot support zero-shot `.wav` voice cloning at
+  all (see its own section below). `Dockerfile.cloning` (glibc,
+  `python:3.12-slim-bookworm`) is a build-it-yourself alternative for people
+  who want cloning -- not built by CI, documented in README/DOCS.md. Keep
+  both working; don't let one regress while changing the other.
+- **Voice cloning support is driven entirely by whether `blue_onnx.style` is
+  importable, not by which Dockerfile you're looking at**: `handler.py` and
+  `__main__.py` both **soft-import** it (`try`/`except ImportError`,
+  mirroring the earlier pattern used while `blue_onnx.style` didn't exist on
+  PyPI at all) -- `style_extractor` can be `None` at runtime, and
+  `load_voice()`'s `.wav` branch must keep handling that gracefully (log +
+  fall back to the default voice), never assume it's always present. Local
+  `uv sync`/dev installs always have the full dependency set (blue-onnx
+  declares `librosa` unconditionally), so `style_extractor` is only ever
+  `None` in a Docker image built without cloning support, not in dev/tests.
+  When adding new code that touches `style_extractor`, keep it `None`-safe.
 - **Model download mirrors the same cloning on/off split**: `models.py` keeps
   `CORE_BUNDLE_FILES` (always downloaded) separate from `CLONING_BUNDLE_FILES`
   (the 3 zero-shot-cloning ONNX graphs, ~118 MB) and only fetches the latter
   when `ensure_model_bundle(..., include_cloning=...)` is called with
   `include_cloning=True` -- `__main__.py` passes
   `VoiceStyleExtractor is not None` for this. Downloading the cloning graphs
-  unconditionally would waste disk space in the default (no-cloning) image,
-  since the code to use them isn't even importable there.
+  unconditionally would waste disk space when the code to use them isn't
+  even importable.
 - **Hebrew ("he") is not in the default `--languages`**: it needs an extra
   ~20 MB G2P (renikud) model download that most installs don't need. It's
   still fully supported -- pass `--languages ...,he` (or the HA app's
@@ -113,16 +115,13 @@
   `dash` (not the bash-only "redirect both stdout+stderr" meaning) and would
   take the wrong branch -- if you ever reintroduce shell-tool-presence
   detection here, use POSIX `> /dev/null 2>&1`, never `&>`.
-- **`Dockerfile.alpine` is an experimental side build, not the published
-  image**: `Dockerfile` (glibc, `python:3.12-slim-bookworm`) is still what CI
-  builds and publishes to `ghcr.io`; `Dockerfile.alpine` exists purely so an
-  Alpine build can be evaluated without any risk to the working setup. A
-  prior investigation (see git history / earlier session notes) ruled Alpine
-  out because `onnxruntime` had zero musllinux PyPI wheels -- that's no
-  longer the blocker: Alpine's own `community` repo ships native musl builds
-  of `onnxruntime`/`numpy`/`uv` (`py3-onnxruntime`, `py3-numpy`, `uv` apk
-  packages), which is what makes this possible at all now. Known quirks if
-  touching this file:
+- **`Dockerfile` (Alpine) is the published/default image** -- built by CI,
+  used by the Home Assistant app. A prior investigation (see git history /
+  earlier session notes) ruled Alpine out because `onnxruntime` had zero
+  musllinux PyPI wheels -- that's no longer the blocker: Alpine's own
+  `community` repo ships native musl builds of `onnxruntime`/`numpy`/`uv`
+  (`py3-onnxruntime`, `py3-numpy`, `uv` apk packages), which is what makes
+  this possible at all now. Known quirks if touching this file:
   - **`espeakng_loader` needs a shim** (`alpine/espeakng_loader/`):
     `blue_onnx/__init__.py` unconditionally imports the real PyPI
     `espeakng_loader` package and wires phonemizer-fork to its bundled
@@ -132,7 +131,7 @@
     `get_library_path()`/`get_data_path()` point at Alpine's own
     `espeak-ng` apk package instead (`/usr/lib/libespeak-ng.so.1`,
     `/usr/share/espeak-ng-data`). Confirmed the real apk `espeak-ng` package
-    is needed here (unlike the main Dockerfile, which doesn't need it at all
+    is needed here (unlike `Dockerfile.cloning`, which doesn't need it at all
     since it uses the real `espeakng_loader`'s bundled glibc library).
   - **`py3-onnxruntime`/`py3-numpy` are installed only in the builder stage**,
     for their Python files (copied into the runtime stage). The runtime
@@ -159,8 +158,8 @@
   - Verified end-to-end on **both** amd64 (~285 MB, real synthesis + Hebrew)
     and native aarch64 (~364 MB, built and tested directly on
     kratie.epipe.com's real hardware, real synthesis in all 5 languages) --
-    both smaller than the main Dockerfile's equivalents (~377 MB / ~558 MB).
-  - **`ENABLE_VOICE_CLONING` is NOT portable to this Dockerfile as-is**:
+    both smaller than `Dockerfile.cloning`'s equivalents (~377 MB / ~558 MB).
+  - **Cannot support `ENABLE_VOICE_CLONING`, and this is not a quick fix**:
     `scipy`/`scikit-learn` are available as native apk packages
     (`py3-scipy`, `py3-scikit-learn`), but `numba`/`llvmlite` are not, and a
     from-source `llvmlite` build fails outright even with Alpine's own
@@ -170,12 +169,57 @@
     though it's no longer a blocker for the core engine. Making cloning work
     here would need either patching llvmlite's build for musl or replacing
     librosa's numba-JIT mel-spectrogram extraction with a pure NumPy/SciPy
-    implementation -- a real separate project, not a quick addition.
-  - **Not the primary/published image, and not recommended to become it**:
-    beyond the cloning gap above, `onnxruntime`/`openblas` here come from
-    Alpine's community-maintained rebuild, not the official upstream
-    artifact the main Dockerfile's PyPI wheel is (the stale `.egg-info`
-    metadata this file works around is a symptom of that gap in polish).
-    Making this primary would also mean the HA app and default Docker image
-    permanently lose the cloning feature. Revisit only if that tradeoff
-    becomes acceptable, or cloning support gets solved.
+    implementation -- a real separate project. This is *why*
+    `Dockerfile.cloning` exists as a separate file rather than an
+    `ENABLE_VOICE_CLONING` arg on this one.
+  - **Known tradeoff, accepted deliberately**: `onnxruntime`/`openblas` here
+    come from Alpine's community-maintained rebuild, not the official
+    upstream PyPI artifact `Dockerfile.cloning` uses (the stale `.egg-info`
+    metadata worked around above is a symptom of that gap in polish). Made
+    primary anyway for the size win (verified on both architectures above);
+    if that trust/maintenance tradeoff ever stops being acceptable, revert by
+    swapping the two Dockerfiles back.
+
+- **`Dockerfile.cloning` (glibc, `python:3.12-slim-bookworm`) is the
+  build-it-yourself alternative for zero-shot voice cloning** -- not built
+  by CI, not published. `ENABLE_VOICE_CLONING` defaults to `true` here
+  (opposite of the Alpine `Dockerfile`'s permanent "unsupported"), since
+  getting cloning is the whole reason to reach for this file instead of the
+  smaller default; pass `--build-arg ENABLE_VOICE_CLONING=false` if you want
+  this glibc build without it anyway. Notes specific to this file:
+  - **`onnx`/`onnxslim` removed post-install**: blue-onnx hard-requires them
+    in its own `pyproject.toml` (for `exports/` conversion tooling this
+    project never calls) with no resolver flag to skip installing them.
+    Verified unused: blue_onnx's only two source files (`__init__.py`,
+    `style.py`) only ever do `import onnxruntime as ort`; onnxruntime itself
+    doesn't depend on `onnx` (PyPI metadata), and the only `onnx` references
+    inside onnxruntime's own package live in optional submodules
+    (`quantization/`, `tools/`, `backend/`, `transformers/`) the plain
+    `ort.InferenceSession(...)` path never imports. `ml_dtypes` is
+    `onnx`/`onnxslim`'s own now-orphaned dependency (confirmed via
+    `uv.lock`), removed alongside them. Re-verify whenever the blue-onnx pin
+    bumps, in case a future version starts using them.
+  - **The `ENABLE_VOICE_CLONING=false` cleanup path removes
+    librosa/numba/llvmlite/scipy/scikit-learn/sympy plus their own now-
+    orphaned dependencies** (`msgpack`/`audioread`/`decorator`/`lazy_loader`/
+    `pooch`/`platformdirs`/`requests`/`charset_normalizer`/`urllib3`/`soxr`
+    only exist for `librosa`; `narwhals`/`threadpoolctl` only for
+    `scikit-learn`; `mpmath` only for `sympy` -- confirmed via `uv.lock`
+    reverse-dependency check that nothing else needs them). Must be the LAST
+    builder-stage step, not right after install, for the same reason as the
+    Alpine Dockerfile's sympy cleanup above in this file: later install
+    steps can silently reintroduce a package an earlier cleanup pass removed.
+  - **`pip` must be removed in the runtime stage, not the builder stage**:
+    the runtime base image (`python:3.12-slim-bookworm`) ships its own
+    pre-installed `pip` via `ensurepip`, unrelated to anything the builder
+    stage installs, and `COPY --from=builder` merges into this image's
+    already-existing site-packages rather than replacing it -- a
+    builder-stage removal never touches the runtime base's own copy.
+  - **No `espeak-ng` apt package needed**: `blue_onnx/__init__.py` wires
+    phonemizer-fork directly to `espeakng_loader`'s own bundled
+    `libespeak-ng.so`/`espeak-ng-data` via
+    `EspeakWrapper.set_library()`/`set_data_path()` (highest lookup
+    precedence), and phonemizer-fork's espeak backend has no subprocess/CLI
+    fallback anywhere (only its unused Festival backend shells out).
+    Verified by removing `espeak-ng` + its deps from a running image and
+    confirming synthesis still works in all 5 languages.

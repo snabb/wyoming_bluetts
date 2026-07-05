@@ -1,152 +1,111 @@
-# Wyoming BlueTTS Docker image
-# BlueTTS runs on ONNX Runtime (CPU only, no PyTorch dependency), so this image
-# is much lighter than a PyTorch-based TTS wrapper.
-# Supports: amd64, aarch64
+# Wyoming BlueTTS Docker image (Alpine-based) -- this is the published/
+# default image (built by CI, used by the Home Assistant app). Does NOT
+# support zero-shot .wav voice cloning (numba/llvmlite, needed by that
+# feature, don't build on musl -- see AGENTS.md). If you need cloning, build
+# Dockerfile.cloning instead (glibc-based, `--build-arg
+# ENABLE_VOICE_CLONING=true` by default) -- see its own header and README.
+# Supports: amd64, aarch64 -- verified natively on both (see AGENTS.md).
 
 # ============================================
-# BUILDER STAGE - Install dependencies with uv
+# BUILDER STAGE
 # ============================================
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM alpine:3.24 AS builder
 
-# Zero-shot .wav voice cloning (blue_onnx.style) needs a librosa/numba/llvmlite/
-# scipy/scikit-learn/sympy dependency chain that's 400+ MB -- roughly half the
-# image -- for a feature most installs never use (precomputed style JSON
-# custom voices work fine without it). Off by default to keep the common case
-# small; build with `--build-arg ENABLE_VOICE_CLONING=true` to keep it.
-ARG ENABLE_VOICE_CLONING=false
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# git: blue-onnx is pinned to a git commit via [tool.uv.sources] in
-# pyproject.toml (see AGENTS.md), so uv needs git to fetch it.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    libsndfile1 \
-    libsndfile1-dev \
-    && rm -rf /var/lib/apt/lists/*
+# py3-onnxruntime/py3-numpy: Alpine's community repo ships native musl builds
+# of these (unlike PyPI, which has zero musllinux wheels for onnxruntime) --
+# this is what makes an Alpine build possible at all now. Installed here only
+# for their Python files (copied into the runtime stage below); the runtime
+# stage installs the underlying C libraries itself (plain onnxruntime +
+# openblas packages) rather than re-installing these py3- wrapper packages,
+# to avoid paying for their site-packages tree twice.
+# uv: Alpine's community repo ships it natively too (matching the main
+# Dockerfile's tool choice, and much faster than pip for this many packages).
+RUN apk add --no-cache \
+    python3 \
+    py3-onnxruntime \
+    py3-numpy \
+    uv \
+    git
 
 WORKDIR /app
 
 ENV UV_SYSTEM_PYTHON=1 \
     UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1
+    UV_BREAK_SYSTEM_PACKAGES=1
+
+# Shim replacing the real (glibc-only) espeakng_loader PyPI package -- see
+# alpine/espeakng_loader/__init__.py for why.
+COPY alpine/espeakng_loader /usr/lib/python3.14/site-packages/espeakng_loader
+
+# --no-deps + explicit installs below, rather than `uv pip install -r
+# pyproject.toml`: onnxruntime and numpy must come from apk (no PyPI wheel
+# for musl), and uv (like pip) has no way to say "treat this requirement as
+# already satisfied" other than pre-installing it first, which apk already
+# did. blue-onnx is git-pinned (see AGENTS.md in the main Dockerfile/repo).
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --no-deps \
+    "git+https://github.com/maxmelichov/BlueTTS.git@f071b9100e15c24575f6e2919312f67057c7b589"
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install \
+    soundfile \
+    huggingface-hub>=0.26.0 \
+    phonemizer-fork>=3.3.2 \
+    renikud-onnx \
+    "wyoming>=1.7.0"
 
 COPY pyproject.toml .
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -r pyproject.toml
-
 COPY wyoming_bluetts/ wyoming_bluetts/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --no-deps .
 
-# blue-onnx hard-requires onnx/onnxslim in its own pyproject.toml (for its
-# exports/ conversion tooling, which this project never calls), so there's no
-# resolver flag to skip installing them -- remove them post-install instead.
-# Verified unused: blue_onnx's only two source files (__init__.py, style.py)
-# only ever do `import onnxruntime as ort`; onnxruntime itself doesn't depend
-# on onnx (PyPI metadata), and the only onnx references inside onnxruntime's
-# own package live in optional submodules (quantization/, tools/, backend/,
-# transformers/) that the plain ort.InferenceSession(...) path never imports.
-# ml_dtypes is onnx/onnxslim's own dependency (confirmed via uv.lock: nothing
-# else requires it) so it becomes dead weight the moment they're removed.
-# (pip is also unused at runtime -- see the runtime stage below for why its
-# removal has to happen there instead of here.)
-# Re-verify this whenever the blue-onnx pin in pyproject.toml is bumped, in
-# case a future version starts using them.
-RUN rm -rf /usr/local/lib/python3.12/site-packages/onnx \
-           /usr/local/lib/python3.12/site-packages/onnx-*.dist-info \
-           /usr/local/lib/python3.12/site-packages/onnxslim \
-           /usr/local/lib/python3.12/site-packages/onnxslim-*.dist-info \
-           /usr/local/lib/python3.12/site-packages/ml_dtypes \
-           /usr/local/lib/python3.12/site-packages/ml_dtypes-*.dist-info
-
-# See the ENABLE_VOICE_CLONING ARG comment above. handler.py/__main__.py
-# soft-import blue_onnx.style, so removing it here disables cloning
-# gracefully (logs a warning, falls back to precomputed style JSON) instead
-# of crashing. Includes librosa/scikit-learn/sympy's own now-orphaned
-# dependencies too (confirmed via uv.lock reverse-dependency check: nothing
-# outside this chain requires them) -- e.g. msgpack/audioread/pooch/soxr/etc.
-# only exist for librosa, narwhals/threadpoolctl only for scikit-learn, mpmath
-# only for sympy. Re-verify this package list whenever the blue-onnx pin bumps.
-RUN if [ "$ENABLE_VOICE_CLONING" != "true" ]; then \
-        rm -rf /usr/local/lib/python3.12/site-packages/librosa \
-               /usr/local/lib/python3.12/site-packages/librosa-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/numba \
-               /usr/local/lib/python3.12/site-packages/numba-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/llvmlite \
-               /usr/local/lib/python3.12/site-packages/llvmlite-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/scipy \
-               /usr/local/lib/python3.12/site-packages/scipy.libs \
-               /usr/local/lib/python3.12/site-packages/scipy-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/sklearn \
-               /usr/local/lib/python3.12/site-packages/scikit_learn.libs \
-               /usr/local/lib/python3.12/site-packages/scikit_learn-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/sympy \
-               /usr/local/lib/python3.12/site-packages/sympy-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/isympy.py \
-               /usr/local/lib/python3.12/site-packages/mpmath \
-               /usr/local/lib/python3.12/site-packages/mpmath-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/msgpack \
-               /usr/local/lib/python3.12/site-packages/msgpack-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/audioread \
-               /usr/local/lib/python3.12/site-packages/audioread-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/decorator \
-               /usr/local/lib/python3.12/site-packages/decorator-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/lazy_loader \
-               /usr/local/lib/python3.12/site-packages/lazy_loader-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/pooch \
-               /usr/local/lib/python3.12/site-packages/pooch-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/platformdirs \
-               /usr/local/lib/python3.12/site-packages/platformdirs-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/requests \
-               /usr/local/lib/python3.12/site-packages/requests-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/charset_normalizer \
-               /usr/local/lib/python3.12/site-packages/charset_normalizer-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/urllib3 \
-               /usr/local/lib/python3.12/site-packages/urllib3-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/soxr \
-               /usr/local/lib/python3.12/site-packages/soxr-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/narwhals \
-               /usr/local/lib/python3.12/site-packages/narwhals-*.dist-info \
-               /usr/local/lib/python3.12/site-packages/threadpoolctl.py \
-               /usr/local/lib/python3.12/site-packages/threadpoolctl-*.dist-info \
-        ; fi
+# Cleanup must be the LAST step in this stage, not right after apk add:
+# renikud-onnx's plain `onnxruntime>=1.24.2` requirement makes uv (same as
+# pip) re-resolve sympy from PyPI anyway (apk's py3-onnxruntime ships an
+# old-style .egg-info with no proper Requires-Dist metadata, so neither tool
+# can tell the already-installed copy satisfies it, and both re-derive its
+# full dependency set, including onnxruntime's own optional "symbolic"
+# extra) -- an earlier cleanup pass gets silently undone by that later
+# install step. sympy/mpmath are unused by the plain ort.InferenceSession(...)
+# path (same reasoning as the main Dockerfile's sympy/mpmath exclusion);
+# numpy's own test suite is never needed at runtime either. Confirmed dead
+# weight: ~75 MB combined. (No `pip` package to strip here, unlike the main
+# Dockerfile -- uv doesn't install itself into site-packages.)
+RUN rm -rf /usr/lib/python3.14/site-packages/sympy \
+           /usr/lib/python3.14/site-packages/sympy-*.dist-info \
+           /usr/lib/python3.14/site-packages/isympy.py \
+           /usr/lib/python3.14/site-packages/mpmath \
+           /usr/lib/python3.14/site-packages/mpmath-*.dist-info \
+    && find /usr/lib/python3.14/site-packages/numpy -type d -name tests -prune -exec rm -rf {} +
 
 # ============================================
-# RUNTIME STAGE - Minimal final image
+# RUNTIME STAGE
 # ============================================
-FROM python:3.12-slim-bookworm
+FROM alpine:3.24
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# No espeak-ng apt package needed: blue_onnx/__init__.py explicitly wires
-# phonemizer-fork to espeakng_loader's own bundled libespeak-ng.so +
-# espeak-ng-data via EspeakWrapper.set_library()/set_data_path() (highest
-# lookup precedence), and phonemizer-fork's espeak backend has no
-# subprocess/CLI fallback anywhere (only its unused Festival backend shells
-# out). Verified by removing espeak-ng + its deps from a running image and
-# confirming both English and Spanish synthesis still work.
-# netcat/jq/curl: healthcheck + run.sh config parsing + HA discovery POST.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsndfile1 \
+# onnxruntime/openblas: the C/C++ libraries py3-onnxruntime/py3-numpy dynamically
+# load -- installed directly (not via the py3- wrapper packages, whose Python
+# files already come from the builder stage's COPY below) to avoid double-
+# paying for the same site-packages tree.
+RUN apk add --no-cache \
+    python3 \
+    onnxruntime \
+    openblas \
+    espeak-ng \
+    libsndfile \
     netcat-openbsd \
     jq \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/apt/*
+    # run.sh's shebang is #!/bin/sh (POSIX, no bash-specific syntax), so
+    # Alpine's built-in busybox ash (/bin/sh) runs it fine -- no bash needed.
+    # protoc/libprotoc (the protobuf *compiler*, not the runtime libprotobuf/
+    # libprotobuf-lite libraries onnxruntime actually needs) get pulled in by
+    # this package combination for reasons not worth chasing through apk's
+    # resolver -- confirmed unused at runtime and removed the same way as
+    # every other dead-weight package in this project's Dockerfiles.
+    && rm -rf /usr/lib/libprotoc.so* /usr/bin/protoc*
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin/wyoming-bluetts /usr/local/bin/
-
-# pip ships pre-installed in this base image itself (via ensurepip, unrelated
-# to anything the builder stage installs) and is unused at runtime -- no
-# requirers anywhere in the resolved dependency graph. Must be removed here,
-# not in the builder stage: COPY --from=builder merges into this image's
-# already-existing site-packages rather than replacing it, so a builder-side
-# removal never touches this base image's own copy.
-RUN rm -rf /usr/local/lib/python3.12/site-packages/pip \
-           /usr/local/lib/python3.12/site-packages/pip-*.dist-info
+COPY --from=builder /usr/lib/python3.14/site-packages /usr/lib/python3.14/site-packages
+COPY --from=builder /usr/bin/wyoming-bluetts /usr/bin/
 
 WORKDIR /app
 
@@ -157,8 +116,6 @@ RUN mkdir -p /data/models /share/tts-voices
 
 EXPOSE 10200
 
-# start-period is generous (10 min) since the model bundle downloads on first
-# run and has 8 ONNX graphs; tighten once real download times are measured.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=3 \
     CMD echo '{"type":"describe"}' | nc -w 5 localhost 10200 | grep -q "bluetts" || exit 1
 

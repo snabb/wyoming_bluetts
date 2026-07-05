@@ -44,12 +44,12 @@ Drop a precomputed style JSON file into the `voices_dir` folder
 extension.
 
 Zero-shot cloning from a `.wav` reference clip is **not available in this
-app** — it needs a large optional dependency chain that's excluded from the
-published build to keep the install small. Requesting a `.wav`-only voice
-name logs a warning and falls back to the default voice instead of failing.
-If you need cloning, run the project's Docker image built with
-`--build-arg ENABLE_VOICE_CLONING=true` instead of installing it as an app
-(see the project's README).
+app** — this app is built on Alpine Linux, and the dependency chain that
+feature needs (`numba`/`llvmlite`) doesn't build on musl at all. Requesting
+a `.wav`-only voice name logs a warning and falls back to the default voice
+instead of failing. If you need cloning, run the project's `Dockerfile.cloning`
+Docker image (glibc-based) standalone instead of installing this app (see
+the project's README).
 
 ## Troubleshooting
 

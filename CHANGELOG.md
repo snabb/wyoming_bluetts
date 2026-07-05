@@ -58,12 +58,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was silently misparsed and would have made the script take the (nonexistent)
   bashio branch and crash, a latent bug only surfaced by this rewrite and
   fixed as part of it.
-- Added `Dockerfile.alpine`: an experimental Alpine-based image, kept fully
-  separate from the published `Dockerfile`/CI so it can't regress the working
-  build. ~285 MB vs. the main image's ~377 MB. See `AGENTS.md` for the
-  workarounds it needed (a shim for `espeakng_loader`'s glibc-only bundled
-  library, avoiding double-installing onnxruntime/numpy's Python files across
-  build stages, and an install-ordering fix for a stray `sympy` reinstall).
+- **The published/default image is now Alpine-based** (`Dockerfile`), not
+  glibc: ~285 MB on amd64, ~364 MB on aarch64 (verified natively on real
+  hardware on both) vs. the glibc build's ~377 MB / ~558 MB. See `AGENTS.md`
+  for the workarounds it needed (a shim for `espeakng_loader`'s glibc-only
+  bundled library, avoiding double-installing onnxruntime/numpy's Python
+  files across build stages, an install-ordering fix for a stray `sympy`
+  reinstall). It cannot support zero-shot voice cloning at all --
+  `numba`/`llvmlite` don't build on musl (confirmed: a from-source build
+  fails even with Alpine's own LLVM toolchain installed).
+- The former default (glibc, `python:3.12-slim-bookworm`) is now
+  `Dockerfile.cloning`, not built by CI -- build it yourself if you need
+  voice cloning, which is on by default there (`ENABLE_VOICE_CLONING=true`).
 
 ### Known upstream issues
 
