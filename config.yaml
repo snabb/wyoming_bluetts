@@ -73,5 +73,10 @@ panel_icon: mdi:text-to-speech
 panel_title: BlueTTS
 
 # Documentation
-# Note: Remove or comment out 'image' line for local app builds
-# image: ghcr.io/snabb/wyoming-bluetts-{arch}
+# Note: Remove or comment out 'image' line for local app builds. If
+# uncommented, Supervisor pulls ghcr.io/snabb/wyoming_bluetts:<version> (the
+# version above) instead of building locally -- no {arch} placeholder needed,
+# since we publish one multi-arch manifest per tag, not per-architecture
+# image names. That published image is Alpine-based (no voice cloning); see
+# Dockerfile.cloning/README.md if you need the cloning variant instead.
+# image: ghcr.io/snabb/wyoming_bluetts
