@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   single label on an image bundling many differently-licensed components)
   from both the per-platform labels and the index annotations, while keeping
   `org.opencontainers.image.source`.
+- `org.opencontainers.image.description` was the same text for both variants
+  (metadata-action auto-generates it from the GitHub repo's own
+  description, which mentions voice cloning) -- wrong on the default
+  (Alpine, non-cloning) image. Both `build` and `merge` jobs now override it
+  per variant via a `description` matrix property, so the non-cloning image's
+  description no longer claims a feature it doesn't have.
 
 ## [0.2.0] - 2026-07-05
 
