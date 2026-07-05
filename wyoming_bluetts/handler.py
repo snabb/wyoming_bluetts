@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import AsyncIterator, Optional, Protocol
 
@@ -393,6 +394,8 @@ class BlueTTSEventHandler(AsyncEventHandler):
                     )
                 elif text:
                     chunk_count = 0
+                    audio_bytes = 0
+                    t_start = time.monotonic()
                     async with _generation_lock():
                         async for chunk in _iter_audio_pcm_chunks(
                             self.engine, style, text, lang, self.cli_args
@@ -406,7 +409,17 @@ class BlueTTSEventHandler(AsyncEventHandler):
                                 ).event()
                             )
                             chunk_count += 1
-                    _LOGGER.info("Streamed %d audio chunk(s)", chunk_count)
+                            audio_bytes += len(chunk)
+                    generation_ms = int((time.monotonic() - t_start) * 1000)
+                    audio_ms = int(audio_bytes / 2 / self.engine.sample_rate * 1000)
+                    rtf = audio_ms / generation_ms if generation_ms > 0 else 0.0
+                    _LOGGER.info(
+                        "Synthesized %d ms of audio in %d ms (%.2fx real-time, %d chunk(s))",
+                        audio_ms,
+                        generation_ms,
+                        rtf,
+                        chunk_count,
+                    )
             except Exception:
                 _LOGGER.exception("Error generating audio")
             finally:

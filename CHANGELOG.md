@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Logs a `Synthesized N ms of audio in N ms (X.XXx real-time, N chunk(s))`
+  line per synthesize request -- BlueTTS itself has no equivalent timing log.
 - `Dockerfile.cloning` is now also built and published by CI, tagged
   `latest-cloning`/`<version>-cloning`/`<short-sha>-cloning` (in addition to
   the default `Dockerfile`'s `latest`/`<version>`/`<short-sha>`) -- a
