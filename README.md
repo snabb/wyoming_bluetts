@@ -22,7 +22,8 @@ app packaging, event handler design).
   ready.
 - **Zero-shot voice cloning** from a short reference `.wav` clip (see
   [Voices](#voices) below) — not available in the default (Alpine) image;
-  build [`Dockerfile.cloning`](#docker) yourself if you need it.
+  use the `:latest-cloning` image tag instead if you need it (see
+  [Docker](#docker)).
 - **CPU only**: ONNX Runtime, no PyTorch dependency, no GPU required.
 - **Models download automatically** on first start.
 - Ships both as a pip-installable Python package and a Home Assistant app.
@@ -72,8 +73,14 @@ can't support zero-shot `.wav` voice cloning: that feature needs a
 `numba`/`llvmlite` don't build on musl (see [AGENTS.md](AGENTS.md)).
 Precomputed style JSON custom voices work in every build regardless.
 
-If you need cloning, build [`Dockerfile.cloning`](Dockerfile.cloning)
-instead (glibc-based, cloning on by default):
+If you need cloning, pull the pre-built variant instead (glibc-based,
+cloning on by default):
+
+```bash
+docker pull ghcr.io/snabb/wyoming_bluetts:latest-cloning
+```
+
+or build [`Dockerfile.cloning`](Dockerfile.cloning) yourself:
 
 ```bash
 docker build -f Dockerfile.cloning -t wyoming-bluetts:cloning .
@@ -107,9 +114,10 @@ Custom voices go in `--voices-dir` (default `/share/tts-voices`):
 - A clean, 5-15 second mono reference `.wav` clip, cloned automatically on
   first use via zero-shot voice conversion, then cached to
   `<voices-dir>/.bluetts_cache/<name>.json` so cloning only runs once. Only
-  available in a build from [`Dockerfile.cloning`](Dockerfile.cloning) (see
-  [Docker](#docker)) — the published (Alpine) image and the Home Assistant
-  app can't support it at all, and log a clear warning and fall back to the
+  available via the `:latest-cloning` image tag or a build from
+  [`Dockerfile.cloning`](Dockerfile.cloning) (see [Docker](#docker)) — the
+  default published (Alpine) image and the Home Assistant app can't support
+  it at all, and log a clear warning and fall back to the
   default voice if a `.wav`-only voice is requested.
 
 ## Languages

@@ -70,13 +70,28 @@
   BlueTTS's own repo) and `models.ensure_blue_onnx_vocab()` copies it into
   place next to the installed `blue_onnx` package at startup. Re-check this
   is still necessary whenever the `blue-onnx` pin is bumped.
-- **Two Dockerfiles, two roles**: `Dockerfile` (Alpine) is the published
-  default -- built by CI, used by the Home Assistant app, pulled by
-  `docker-compose.yml`. It cannot support zero-shot `.wav` voice cloning at
-  all (see its own section below). `Dockerfile.cloning` (glibc,
-  `python:3.12-slim-bookworm`) is a build-it-yourself alternative for people
-  who want cloning -- not built by CI, documented in README/DOCS.md. Keep
-  both working; don't let one regress while changing the other.
+- **Two Dockerfiles, both built and published by CI, two roles**: `Dockerfile`
+  (Alpine) is the default -- tagged `latest`/`<version>`/`<short-sha>`, used
+  by the Home Assistant app, pulled by `docker-compose.yml`. It cannot
+  support zero-shot `.wav` voice cloning at all (see its own section below).
+  `Dockerfile.cloning` (glibc, `python:3.12-slim-bookworm`) has cloning on by
+  default and is published as `latest-cloning`/`<version>-cloning`/
+  `<short-sha>-cloning` (see `.github/workflows/job-docker.yml`'s `build`/
+  `merge` job matrices -- both variants build for both platforms, four build
+  jobs total). It's still not the default: not used by the HA app, not what
+  `docker-compose.yml` pulls unless you change the tag yourself. Keep both
+  working; don't let one regress while changing the other.
+- **CI has a real smoke test, not just `pytest`**: `job-docker.yml`'s
+  `smoke-test` job (after `merge`) pulls each published tag, waits for the
+  container's own healthcheck to report healthy, then runs
+  `.github/scripts/smoke_test.py` -- a real `Synthesize` request over the
+  Wyoming protocol against the running container, asserting non-empty audio
+  actually comes back. This is the only place that verifies a built image
+  actually boots and synthesizes; `job-test.yml`'s `pytest` run never touches
+  Docker at all. If you change `run.sh`, the healthcheck, or anything in the
+  synthesis path, this is what would catch a regression the unit tests can't
+  see (e.g. the `dash`/`&>` bug from the `run.sh` POSIX rewrite would have
+  been caught here, not by `pytest`).
 - **Voice cloning support is driven entirely by whether `blue_onnx.style` is
   importable, not by which Dockerfile you're looking at**: `handler.py` and
   `__main__.py` both **soft-import** it (`try`/`except ImportError`,
@@ -181,11 +196,13 @@
     swapping the two Dockerfiles back.
 
 - **`Dockerfile.cloning` (glibc, `python:3.12-slim-bookworm`) is the
-  build-it-yourself alternative for zero-shot voice cloning** -- not built
-  by CI, not published. `ENABLE_VOICE_CLONING` defaults to `true` here
-  (opposite of the Alpine `Dockerfile`'s permanent "unsupported"), since
-  getting cloning is the whole reason to reach for this file instead of the
-  smaller default; pass `--build-arg ENABLE_VOICE_CLONING=false` if you want
+  alternative for zero-shot voice cloning** -- built and published by CI
+  (`latest-cloning`/`<version>-cloning` tags), but still not the default: not
+  used by the HA app, not what `docker-compose.yml` pulls by default.
+  `ENABLE_VOICE_CLONING` defaults to `true` here (opposite of the Alpine
+  `Dockerfile`'s permanent "unsupported"), since getting cloning is the whole
+  reason to reach for this file instead of the smaller default; pass
+  `--build-arg ENABLE_VOICE_CLONING=false` if you want
   this glibc build without it anyway. Notes specific to this file:
   - **`onnx`/`onnxslim` removed post-install**: blue-onnx hard-requires them
     in its own `pyproject.toml` (for `exports/` conversion tooling this

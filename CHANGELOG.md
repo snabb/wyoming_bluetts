@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `Dockerfile.cloning` is now also built and published by CI, tagged
+  `latest-cloning`/`<version>-cloning`/`<short-sha>-cloning` (in addition to
+  the default `Dockerfile`'s `latest`/`<version>`/`<short-sha>`) -- a
+  pre-built alternative for voice cloning, no longer strictly "build it
+  yourself." Still not the default: not used by the Home Assistant app, not
+  what `docker-compose.yml` pulls unless you change the tag.
+- CI now runs a real smoke test after publishing: pulls each tag, waits for
+  the container's own healthcheck, and sends an actual `Synthesize` request
+  over the Wyoming protocol, asserting real audio comes back
+  (`.github/scripts/smoke_test.py`). Previously only `pytest` (which never
+  touches Docker) ran in CI, so a built image could be broken (like the
+  `dash`/`&>` `run.sh` bug from the previous change) without CI ever
+  noticing.
+
 ## [0.2.0] - 2026-07-05
 
 ### Added

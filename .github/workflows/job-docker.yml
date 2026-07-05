@@ -20,11 +20,26 @@ jobs:
                 # native-extension compile (build-essential) in the builder
                 # stage. ubuntu-24.04-arm is a GitHub-hosted arm64 runner,
                 # free and unlimited on public repos same as ubuntu-latest.
+                # Two variants: default (Alpine, Dockerfile) is the published
+                # image; cloning (glibc, Dockerfile.cloning) adds zero-shot
+                # voice cloning, which the Alpine image can't support at all.
                 include:
                     - platform: linux/amd64
                       runner: ubuntu-latest
+                      variant: default
+                      dockerfile: Dockerfile
                     - platform: linux/arm64
                       runner: ubuntu-24.04-arm
+                      variant: default
+                      dockerfile: Dockerfile
+                    - platform: linux/amd64
+                      runner: ubuntu-latest
+                      variant: cloning
+                      dockerfile: Dockerfile.cloning
+                    - platform: linux/arm64
+                      runner: ubuntu-24.04-arm
+                      variant: cloning
+                      dockerfile: Dockerfile.cloning
         runs-on: ${{ matrix.runner }}
         steps:
             - uses: actions/checkout@v7
@@ -50,11 +65,12 @@ jobs:
               uses: docker/build-push-action@v7
               with:
                   context: .
+                  file: ${{ matrix.dockerfile }}
                   platforms: ${{ matrix.platform }}
                   labels: ${{ steps.meta.outputs.labels }}
                   outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-                  cache-from: type=gha,scope=${{ matrix.platform }}
-                  cache-to: type=gha,scope=${{ matrix.platform }},mode=max
+                  cache-from: type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }}
+                  cache-to: type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }},mode=max
 
             - name: Export digest
               run: |
@@ -65,7 +81,7 @@ jobs:
             - name: Upload digest
               uses: actions/upload-artifact@v7
               with:
-                  name: digests-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+                  name: digests-${{ matrix.variant }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
                   path: /tmp/digests/*
                   if-no-files-found: error
                   retention-days: 1
@@ -76,20 +92,24 @@ jobs:
         permissions:
             contents: read
             packages: write
+        strategy:
+            matrix:
+                variant: [default, cloning]
         steps:
             - uses: actions/checkout@v7
 
-            - name: Extract version from pyproject.toml
+            - name: Extract version and short SHA
               id: version
               run: |
                   version=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
                   echo "version=$version" >> "$GITHUB_OUTPUT"
+                  echo "short_sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
             - name: Download digests
               uses: actions/download-artifact@v8
               with:
                   path: /tmp/digests
-                  pattern: digests-*
+                  pattern: digests-${{ matrix.variant }}-*
                   merge-multiple: true
 
             - name: Set up Docker Buildx
@@ -107,10 +127,14 @@ jobs:
               uses: docker/metadata-action@v6
               with:
                   images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                  # cloning variant gets every tag suffixed -cloning (latest ->
+                  # latest-cloning, 0.2.0 -> 0.2.0-cloning, etc.) so its tags
+                  # never collide with the default variant's for the same
+                  # version/commit.
                   tags: |
-                      type=raw,value=latest
-                      type=raw,value=${{ steps.version.outputs.version }}
-                      type=sha,prefix=
+                      type=raw,value=${{ matrix.variant == 'cloning' && 'latest-cloning' || 'latest' }}
+                      type=raw,value=${{ steps.version.outputs.version }}${{ matrix.variant == 'cloning' && '-cloning' || '' }}
+                      type=raw,value=${{ steps.version.outputs.short_sha }}${{ matrix.variant == 'cloning' && '-cloning' || '' }}
 
             - name: Create manifest list and push
               working-directory: /tmp/digests
@@ -121,4 +145,56 @@ jobs:
 
             - name: Inspect image
               run: |
-                  docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+                  docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.variant == 'cloning' && 'latest-cloning' || 'latest' }}"
+
+    smoke-test:
+        runs-on: ubuntu-latest
+        needs: merge
+        strategy:
+            matrix:
+                variant: [default, cloning]
+        steps:
+            - uses: actions/checkout@v7
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v8.2.0
+              with:
+                  version: latest
+                  enable-cache: true
+                  cache-dependency-glob: uv.lock
+
+            - name: Set up Python
+              run: uv python install
+
+            - name: Install wyoming client (for the smoke test script)
+              run: uv sync --all-extras --dev
+
+            - name: Pull and start container
+              run: |
+                  IMAGE_TAG="${{ matrix.variant == 'cloning' && 'latest-cloning' || 'latest' }}"
+                  docker pull "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$IMAGE_TAG"
+                  docker run -d --name smoke-test -p 10200:10200 "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$IMAGE_TAG"
+
+            - name: Wait for healthy
+              run: |
+                  for i in $(seq 1 60); do
+                    status=$(docker inspect smoke-test --format '{{.State.Health.Status}}' 2>/dev/null || echo "starting")
+                    echo "[$i/60] health: $status"
+                    if [ "$status" = "healthy" ]; then
+                      exit 0
+                    fi
+                    sleep 10
+                  done
+                  echo "Timed out waiting for the container to become healthy"
+                  exit 1
+
+            - name: Real synthesis smoke test
+              run: uv run python3 .github/scripts/smoke_test.py
+
+            - name: Dump container logs
+              if: always()
+              run: docker logs smoke-test
+
+            - name: Clean up
+              if: always()
+              run: docker rm -f smoke-test
