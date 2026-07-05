@@ -156,8 +156,26 @@
     way as every other confirmed-dead package in this project's Dockerfiles.
   - No `bash` needed either, since `run.sh` is POSIX `sh` (see below) --
     Alpine's built-in busybox `ash` runs it directly.
-  - Verified end-to-end (real synthesis, all default languages plus Hebrew):
-    ~285 MB, smaller than the main Dockerfile's ~377 MB. Not yet verified:
-    the `ENABLE_VOICE_CLONING` build arg (main Dockerfile's librosa/
-    scikit-learn/sympy opt-in path) -- would need the same apk/pip split
-    treatment as everything else here if ever added.
+  - Verified end-to-end on **both** amd64 (~285 MB, real synthesis + Hebrew)
+    and native aarch64 (~364 MB, built and tested directly on
+    kratie.epipe.com's real hardware, real synthesis in all 5 languages) --
+    both smaller than the main Dockerfile's equivalents (~377 MB / ~558 MB).
+  - **`ENABLE_VOICE_CLONING` is NOT portable to this Dockerfile as-is**:
+    `scipy`/`scikit-learn` are available as native apk packages
+    (`py3-scipy`, `py3-scikit-learn`), but `numba`/`llvmlite` are not, and a
+    from-source `llvmlite` build fails outright even with Alpine's own
+    `llvm18`/`llvm18-dev`/`clang18` installed (confirmed by testing it) --
+    the same numba/llvmlite-on-musl pain point the original pre-session
+    Alpine investigation flagged, still applicable to this one chain even
+    though it's no longer a blocker for the core engine. Making cloning work
+    here would need either patching llvmlite's build for musl or replacing
+    librosa's numba-JIT mel-spectrogram extraction with a pure NumPy/SciPy
+    implementation -- a real separate project, not a quick addition.
+  - **Not the primary/published image, and not recommended to become it**:
+    beyond the cloning gap above, `onnxruntime`/`openblas` here come from
+    Alpine's community-maintained rebuild, not the official upstream
+    artifact the main Dockerfile's PyPI wheel is (the stale `.egg-info`
+    metadata this file works around is a symptom of that gap in polish).
+    Making this primary would also mean the HA app and default Docker image
+    permanently lose the cloning feature. Revisit only if that tradeoff
+    becomes acceptable, or cloning support gets solved.
