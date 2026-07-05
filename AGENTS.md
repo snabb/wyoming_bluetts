@@ -100,3 +100,49 @@
   `languages` option) to enable it. Keep `DEFAULT_LANGUAGES` in `__main__.py`,
   `config.yaml`'s `options.languages`, `run.sh`'s fallback defaults, and the
   `docker-compose.yml` example in sync if this changes again.
+- **`Dockerfile.alpine` is an experimental side build, not the published
+  image**: `Dockerfile` (glibc, `python:3.12-slim-bookworm`) is still what CI
+  builds and publishes to `ghcr.io`; `Dockerfile.alpine` exists purely so an
+  Alpine build can be evaluated without any risk to the working setup. A
+  prior investigation (see git history / earlier session notes) ruled Alpine
+  out because `onnxruntime` had zero musllinux PyPI wheels -- that's no
+  longer the blocker: Alpine's own `community` repo ships native musl builds
+  of `onnxruntime`/`numpy`/`uv` (`py3-onnxruntime`, `py3-numpy`, `uv` apk
+  packages), which is what makes this possible at all now. Known quirks if
+  touching this file:
+  - **`espeakng_loader` needs a shim** (`alpine/espeakng_loader/`):
+    `blue_onnx/__init__.py` unconditionally imports the real PyPI
+    `espeakng_loader` package and wires phonemizer-fork to its bundled
+    library via `EspeakWrapper.set_library()`/`set_data_path()` -- but that
+    bundled library is glibc-only (no musllinux wheel, and building from
+    source doesn't produce a usable binary either). The shim's
+    `get_library_path()`/`get_data_path()` point at Alpine's own
+    `espeak-ng` apk package instead (`/usr/lib/libespeak-ng.so.1`,
+    `/usr/share/espeak-ng-data`). Confirmed the real apk `espeak-ng` package
+    is needed here (unlike the main Dockerfile, which doesn't need it at all
+    since it uses the real `espeakng_loader`'s bundled glibc library).
+  - **`py3-onnxruntime`/`py3-numpy` are installed only in the builder stage**,
+    for their Python files (copied into the runtime stage). The runtime
+    stage installs the underlying C libraries directly (`onnxruntime`,
+    `openblas` -- no `py3-` prefix) instead of re-installing the `py3-`
+    wrapper packages, which would otherwise duplicate the entire
+    site-packages tree the builder's `COPY` already brings over.
+  - **Dead-weight cleanup (`sympy`/`mpmath`/numpy's test suite) must be the
+    LAST step in the builder stage**, not right after `apk add`: Alpine's
+    `py3-onnxruntime` hard-depends on `py3-sympy` (mirroring PyPI
+    onnxruntime's own optional "symbolic" extra, unused here), and it ships
+    an old-style `.egg-info` with no proper `Requires-Dist` metadata --
+    neither `pip` nor `uv` can tell the already-installed copy satisfies
+    `renikud-onnx`'s plain `onnxruntime>=1.24.2` requirement, so both
+    silently re-resolve and reinstall `sympy` from PyPI the moment that
+    later install step runs, undoing an earlier cleanup pass.
+  - `protoc`/`libprotoc` (the protobuf *compiler*, not the
+    `libprotobuf`/`libprotobuf-lite` runtime libraries onnxruntime actually
+    needs) get pulled into the runtime stage's apk package set for reasons
+    not worth chasing through the resolver -- stripped post-install the same
+    way as every other confirmed-dead package in this project's Dockerfiles.
+  - Verified end-to-end (real synthesis, all default languages plus Hebrew):
+    ~286 MB, smaller than the main Dockerfile's ~377 MB. Not yet verified:
+    the `ENABLE_VOICE_CLONING` build arg (main Dockerfile's librosa/
+    scikit-learn/sympy opt-in path) -- would need the same apk/pip split
+    treatment as everything else here if ever added.
