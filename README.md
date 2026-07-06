@@ -126,6 +126,22 @@ Custom voices go in `--voices-dir` (default `/share/tts-voices`):
   it at all, and log a clear warning and fall back to the
   default voice if a `.wav`-only voice is requested.
 
+To use any custom voice (style JSON or `.wav`) from Home Assistant, pass its
+filename (without extension) as the `voice` option — it does not need to be
+in `--voices`/the app's "Voices to load" list, which only controls what's
+preloaded at startup and advertised in the UI's voice picker. For example, a
+`tts.speak` service call:
+
+```yaml
+action: tts.speak
+data:
+  entity_id: tts.bluetts_remote
+  media_player_entity_id: media_player.living_room
+  message: Hello there
+  options:
+    voice: my_custom_voice
+```
+
 ## Languages
 
 `en`, `es`, `de`, `it` by default. `he` (Hebrew) is also supported but not
