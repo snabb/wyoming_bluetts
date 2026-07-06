@@ -72,10 +72,15 @@ RUN rm -rf /usr/local/lib/python3.12/site-packages/onnx \
 # dependencies too (confirmed via uv.lock reverse-dependency check: nothing
 # outside this chain requires them) -- e.g. msgpack/audioread/pooch/soxr/etc.
 # only exist for librosa, narwhals/threadpoolctl only for scikit-learn, mpmath
-# only for sympy. Re-verify this package list whenever the blue-onnx pin bumps.
+# only for sympy. resampy is our own explicit addition (pyproject.toml) for
+# blue_onnx.style's librosa.resample(res_type="kaiser_best") call, not
+# something librosa pulls in on its own -- only needed for cloning too.
+# Re-verify this package list whenever the blue-onnx pin bumps.
 RUN if [ "$ENABLE_VOICE_CLONING" != "true" ]; then \
         rm -rf /usr/local/lib/python3.12/site-packages/librosa \
                /usr/local/lib/python3.12/site-packages/librosa-*.dist-info \
+               /usr/local/lib/python3.12/site-packages/resampy \
+               /usr/local/lib/python3.12/site-packages/resampy-*.dist-info \
                /usr/local/lib/python3.12/site-packages/numba \
                /usr/local/lib/python3.12/site-packages/numba-*.dist-info \
                /usr/local/lib/python3.12/site-packages/llvmlite \

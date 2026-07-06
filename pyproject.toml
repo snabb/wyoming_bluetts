@@ -27,6 +27,16 @@ dependencies = [
     # uv's resolver can pick an ancient numba (e.g. 0.53.1) that only supports
     # Python <3.10 and fails to build here.
     "numba>=0.59.0",
+    # blue_onnx.style hard-codes librosa.resample(..., res_type="kaiser_best"),
+    # which forces librosa's legacy resampy backend -- but neither blue-onnx
+    # nor librosa itself declares resampy as a dependency (librosa's own
+    # default backend is soxr, already installed, which this specific call
+    # bypasses). Without this, voice cloning fails at call time with
+    # `ModuleNotFoundError: No module named 'resampy'`, silently falling back
+    # to the default voice (see handler.load_voice's except branch) instead of
+    # cloning. Re-verify whenever the blue-onnx pin bumps, in case a future
+    # version stops forcing kaiser_best.
+    "resampy>=0.4.3",
 ]
 
 # The published blue-onnx==0.2.4 wheel on PyPI is missing vocab.json (crashes on

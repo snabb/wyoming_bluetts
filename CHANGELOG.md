@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Zero-shot voice cloning silently fell back to the default voice on every
+  request: `blue_onnx.style` calls `librosa.resample(res_type="kaiser_best")`,
+  which requires `resampy`, a dependency neither `blue-onnx` nor `librosa`
+  itself declares (librosa's own default resampler is `soxr`, already
+  installed, but this call bypasses it). Added `resampy` as an explicit
+  dependency.
+- `Dockerfile.cloning` base images updated from Debian bookworm to trixie.
+
 ### Added
 
 - `--speak-decimal-points` (on by default, `--no-speak-decimal-points` to
