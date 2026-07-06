@@ -5,85 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Fixed
-
-- Zero-shot voice cloning silently fell back to the default voice on every
-  request: `blue_onnx.style` calls `librosa.resample(res_type="kaiser_best")`,
-  which requires `resampy`, a dependency neither `blue-onnx` nor `librosa`
-  itself declares (librosa's own default resampler is `soxr`, already
-  installed, but this call bypasses it). Added `resampy` as an explicit
-  dependency.
-- `Dockerfile.cloning` base images updated from Debian bookworm to trixie.
+## [0.2.1] - 2026-07-06
 
 ### Added
 
-- `--speak-decimal-points` (on by default, `--no-speak-decimal-points` to
-  disable): rewrites decimals like `3.5` to `3 point 5` (localized per
-  language: "punto"/"Punkt"/"punto" for es/de/it) before synthesis. Without
-  it, espeak's number reading expands each side into words but leaves the
-  literal `.` between them, which plays as a silent pause indistinguishable
-  from a sentence break. Hebrew is unaffected -- it doesn't use espeak's
-  number reading. Also exposed as `speak_decimal_points` in the Home
-  Assistant app's Configuration tab, wired through `run.sh`.
-- Logs a `Synthesized N ms of audio in N ms (X.XXx real-time, N chunk(s))`
-  line per synthesize request -- BlueTTS itself has no equivalent timing log.
-- `Dockerfile.cloning` is now also built and published by CI, tagged
-  `latest-cloning`/`<version>-cloning`/`<short-sha>-cloning` (in addition to
-  the default `Dockerfile`'s `latest`/`<version>`/`<short-sha>`) -- a
-  pre-built alternative for voice cloning, no longer strictly "build it
-  yourself." Still not the default: not what `docker-compose.yml` pulls
-  unless you change the tag, and not selectable from the Home Assistant app.
-- CI now runs a real smoke test after publishing: pulls each tag, waits for
-  the container's own healthcheck, and sends an actual `Synthesize` request
-  over the Wyoming protocol, asserting real audio comes back
-  (`.github/scripts/smoke_test.py`). Previously only `pytest` (which never
-  touches Docker) ran in CI, so a built image could be broken (like the
-  `dash`/`&>` `run.sh` bug from the previous change) without CI ever
-  noticing.
-- The Home Assistant app now pulls the pre-built
-  `ghcr.io/snabb/wyoming_bluetts:<version>` image (`config.yaml`'s `image:`)
-  instead of Supervisor building it locally on every install/update -- faster
-  installs, less load on the HA host. Since Supervisor auto-appends
-  `:<version>` from `config.yaml`'s `version` field, every version bump from
-  now on must have a matching image tag already published (CI does this
-  automatically on push) or the app's update check will fail to find it.
-  This app image is Alpine-based, so it still can't support voice cloning --
-  unchanged from before, just now via a pulled image instead of a locally
-  built one.
+- `--speak-decimal-points` (default on): speaks "3.5" as "3 point 5"
+  (en/es/de/it). Also exposed as a Home Assistant app option.
+- Logs synthesis time and real-time factor per request.
+- `Dockerfile.cloning` now also built and published by CI
+  (`latest-cloning`/`<version>-cloning`), no longer build-it-yourself only.
+- CI smoke test: pulls each published tag and sends a real `Synthesize`
+  request, catching broken images `pytest` alone can't.
+- Home Assistant app now pulls the pre-built image instead of building
+  locally -- faster installs/updates.
 
 ### Fixed
 
-- GHCR's package page showed "No description provided" for every published
-  tag despite `docker/metadata-action` generating full OCI labels: those
-  labels only ever reached each per-platform image's own config, not the
-  multi-arch manifest list/index `docker buildx imagetools create` builds
-  from their digests -- GHCR reads the index's own annotations for the
-  package page, and `imagetools create` doesn't copy labels from the source
-  images into a new index automatically. Now passes metadata-action's
-  `annotations` output through as `--annotation "index:..."` on the merge
-  step. Also drops `org.opencontainers.image.licenses` (misleading as a
-  single label on an image bundling many differently-licensed components)
-  from both the per-platform labels and the index annotations, while keeping
-  `org.opencontainers.image.source`.
-- `org.opencontainers.image.description` was the same text for both variants
-  (metadata-action auto-generates it from the GitHub repo's own
-  description, which mentions voice cloning) -- wrong on the default
-  (Alpine, non-cloning) image. Both `build` and `merge` jobs now override it
-  per variant via a `description` matrix property. `docker/metadata-action`'s
-  `labels` and `annotations` outputs are independent -- overriding one does
-  not override the other -- so both inputs need setting; overriding only
-  `labels` fixes the per-platform image's own description but leaves the
-  index's the same.
-- phonemizer's "words count mismatch" WARNING still appeared on every
-  synthesis request despite an earlier attempt to silence it via
-  `setLevel(logging.ERROR)` at startup: `blue_onnx` lazily constructs
-  `EspeakBackend` on first use per language, which resets that same logger
-  back to `WARNING` internally. Fixed with a `logging.Filter`, which isn't
-  reset that way.
-  published index's (what GHCR's package page and `docker buildx imagetools
-  inspect` actually show) on the old, shared text.
+- GHCR package page showed "No description provided": `imagetools create`
+  doesn't copy labels into the index it builds. Also dropped the
+  auto-generated (and misleading, for a multi-component image)
+  `org.opencontainers.image.licenses` label.
+- `latest` and `latest-cloning` had the same description, wrongly claiming
+  voice cloning on the non-cloning image.
+- phonemizer's "words count mismatch" warning kept reappearing despite an
+  earlier `setLevel` fix, because `blue_onnx` resets it per language on
+  first use. Fixed with a `logging.Filter` instead.
+- Voice cloning silently fell back to the default voice: missing `resampy`
+  dependency (`blue_onnx.style` needs it for resampling, but neither
+  `blue-onnx` nor `librosa` declares it).
+- `Dockerfile.cloning` base image updated from Debian bookworm to trixie.
 
 ## [0.2.0] - 2026-07-05
 
