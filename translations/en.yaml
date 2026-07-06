@@ -42,5 +42,12 @@ configuration:
     debug:
         name: Debug logging
         description: Show verbose logs for troubleshooting.
+    speak_decimal_points:
+        name: Speak decimal points
+        description: >-
+            Rewrite decimals like "3.5" to "3 point 5" before synthesis
+            (en/es/de/it only). Without this, espeak's number reading leaves
+            the literal "." between the expanded number words, which plays
+            as a silent pause easily mistaken for a sentence break.
 network:
     10200/tcp: Wyoming protocol

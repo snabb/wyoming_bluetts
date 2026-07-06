@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it, espeak's number reading expands each side into words but leaves the
   literal `.` between them, which plays as a silent pause indistinguishable
   from a sentence break. Hebrew is unaffected -- it doesn't use espeak's
-  number reading.
+  number reading. Also exposed as `speak_decimal_points` in the Home
+  Assistant app's Configuration tab, wired through `run.sh`.
 - Logs a `Synthesized N ms of audio in N ms (X.XXx real-time, N chunk(s))`
   line per synthesize request -- BlueTTS itself has no equivalent timing log.
 - `Dockerfile.cloning` is now also built and published by CI, tagged

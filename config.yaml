@@ -57,6 +57,10 @@ options:
     voices_dir: /share/tts-voices
     models_dir: /data/models
     debug: false
+    # Rewrites decimals like "3.5" to "3 point 5" before synthesis (en/es/de/it
+    # only). Without it, espeak's number reading leaves the literal "." between
+    # the expanded number words, which plays as a silent pause.
+    speak_decimal_points: true
 
 schema:
     languages:
@@ -67,6 +71,7 @@ schema:
     voices_dir: str
     models_dir: str
     debug: bool
+    speak_decimal_points: bool
 
 # Panel
 panel_icon: mdi:text-to-speech

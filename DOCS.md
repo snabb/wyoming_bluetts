@@ -25,6 +25,7 @@ Fast, local, multilingual text-to-speech using the
 | `voices_dir` | `/share/tts-voices` | Folder for custom voice style JSON / wav samples |
 | `models_dir` | `/data/models` | Folder for the auto-downloaded ONNX model bundle (standalone Docker only; app installs should leave this at the default) |
 | `debug` | `false` | Verbose logging |
+| `speak_decimal_points` | `true` | Rewrite decimals like `3.5` to `3 point 5` before synthesis (en/es/de/it only; see [Troubleshooting](#troubleshooting)) |
 
 ## Preset voices
 
@@ -63,3 +64,9 @@ standalone instead of installing this app (see the project's README).
   in `voices_dir` (not a subfolder).
 - **Cloned voice sounds off**: try a cleaner, quieter reference clip without
   background noise or music.
+- **Decimal numbers have an odd silent pause** (e.g. "3.5" sounds like "three
+  ... five"): this is `speak_decimal_points` doing nothing for a language it
+  doesn't cover (only en/es/de/it), or the option turned off. It's on by
+  default and rewrites decimals to "3 point 5" before synthesis, since
+  espeak's own number reading leaves the literal "." between the expanded
+  number words otherwise.

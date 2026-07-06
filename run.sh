@@ -23,6 +23,15 @@ if [ -f "$CONFIG_PATH" ]; then
     VOICES_DIR=$(jq -r '.voices_dir // "/share/tts-voices"' "$CONFIG_PATH")
     MODELS_DIR=$(jq -r '.models_dir // "/data/models"' "$CONFIG_PATH")
     DEBUG=$(jq -r '.debug // false' "$CONFIG_PATH")
+    # `// true` doesn't work here: jq's `//` treats `false` (not just `null`
+    # /missing) as "no value" and falls through to the alternative, which
+    # would silently ignore a user explicitly disabling this in the app's
+    # Configuration tab. `debug`'s `// false` above doesn't hit this in
+    # practice (fallback matches what an explicit `false` should produce
+    # anyway), but a default-true option needs the explicit has()/null check.
+    SPEAK_DECIMAL_POINTS=$(jq -r \
+        'if (has("speak_decimal_points") and (.speak_decimal_points != null))
+         then .speak_decimal_points else true end' "$CONFIG_PATH")
 else
     # Defaults for standalone usage (also overridable via plain env vars,
     # e.g. from docker-compose.yml)
@@ -32,6 +41,7 @@ else
     VOICES_DIR="${VOICES_DIR:-/share/tts-voices}"
     MODELS_DIR="${MODELS_DIR:-/data/models}"
     DEBUG="${DEBUG:-false}"
+    SPEAK_DECIMAL_POINTS="${SPEAK_DECIMAL_POINTS:-true}"
 fi
 
 [ "$LANGUAGES" = "null" ] && LANGUAGES="en,es,de,it"
@@ -55,6 +65,10 @@ if [ "$DEBUG" = "true" ]; then
     set -- "$@" --debug
 fi
 
+if [ "$SPEAK_DECIMAL_POINTS" = "false" ]; then
+    set -- "$@" --no-speak-decimal-points
+fi
+
 echo "========================================"
 echo "Wyoming BlueTTS Server"
 echo "========================================"
@@ -63,6 +77,7 @@ echo "Voices: ${VOICES:-<all built-in + custom (on demand)>}"
 echo "Voices dir: $VOICES_DIR"
 echo "Models dir: $MODELS_DIR"
 echo "Debug: $DEBUG"
+echo "Speak decimal points: $SPEAK_DECIMAL_POINTS"
 echo "========================================"
 
 # Function to send discovery info to Home Assistant
