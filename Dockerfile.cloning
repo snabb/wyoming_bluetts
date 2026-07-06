@@ -9,7 +9,7 @@
 # ============================================
 # BUILDER STAGE - Install dependencies with uv
 # ============================================
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS builder
 
 # Zero-shot .wav voice cloning (blue_onnx.style) needs a librosa/numba/llvmlite/
 # scipy/scikit-learn/sympy dependency chain that's 400+ MB -- roughly half the
@@ -120,7 +120,7 @@ RUN if [ "$ENABLE_VOICE_CLONING" != "true" ]; then \
 # ============================================
 # RUNTIME STAGE - Minimal final image
 # ============================================
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-trixie
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

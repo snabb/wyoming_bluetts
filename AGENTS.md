@@ -74,7 +74,7 @@
   (Alpine) is the default -- tagged `latest`/`<version>`/`<short-sha>`, used
   by the Home Assistant app, pulled by `docker-compose.yml`. It cannot
   support zero-shot `.wav` voice cloning at all (see its own section below).
-  `Dockerfile.cloning` (glibc, `python:3.12-slim-bookworm`) has cloning on by
+  `Dockerfile.cloning` (glibc, `python:3.12-slim-trixie`) has cloning on by
   default and is published as `latest-cloning`/`<version>-cloning`/
   `<short-sha>-cloning` (see `.github/workflows/job-docker.yml`'s `build`/
   `merge` job matrices -- both variants build for both platforms, four build
@@ -201,7 +201,7 @@
     if that trust/maintenance tradeoff ever stops being acceptable, revert by
     swapping the two Dockerfiles back.
 
-- **`Dockerfile.cloning` (glibc, `python:3.12-slim-bookworm`) is the
+- **`Dockerfile.cloning` (glibc, `python:3.12-slim-trixie`) is the
   alternative for zero-shot voice cloning** -- built and published by CI
   (`latest-cloning`/`<version>-cloning` tags), but still not the default: not
   used by the HA app, not what `docker-compose.yml` pulls by default.
@@ -233,7 +233,7 @@
     Alpine Dockerfile's sympy cleanup above in this file: later install
     steps can silently reintroduce a package an earlier cleanup pass removed.
   - **`pip` must be removed in the runtime stage, not the builder stage**:
-    the runtime base image (`python:3.12-slim-bookworm`) ships its own
+    the runtime base image (`python:3.12-slim-trixie`) ships its own
     pre-installed `pip` via `ensurepip`, unrelated to anything the builder
     stage installs, and `COPY --from=builder` merges into this image's
     already-existing site-packages rather than replacing it -- a
