@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--speak-decimal-points` (on by default, `--no-speak-decimal-points` to
+  disable): rewrites decimals like `3.5` to `3 point 5` (localized per
+  language: "punto"/"Punkt"/"punto" for es/de/it) before synthesis. Without
+  it, espeak's number reading expands each side into words but leaves the
+  literal `.` between them, which plays as a silent pause indistinguishable
+  from a sentence break. Hebrew is unaffected -- it doesn't use espeak's
+  number reading.
 - Logs a `Synthesized N ms of audio in N ms (X.XXx real-time, N chunk(s))`
   line per synthesize request -- BlueTTS itself has no equivalent timing log.
 - `Dockerfile.cloning` is now also built and published by CI, tagged

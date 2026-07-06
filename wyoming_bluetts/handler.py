@@ -241,6 +241,39 @@ def get_wyoming_info(
     )
 
 
+_DECIMAL_RE = re.compile(r"\b(\d+)\.(\d+)\b")
+
+# Only the espeak-routed languages: verified each renders the same "literal
+# '.' left between the two expanded number words" artifact this fixes, and
+# that substituting this word back in phonemizes cleanly. Hebrew is
+# deliberately excluded -- it doesn't go through espeak at all (renikud G2P
+# instead), plain digit/latin text bypasses phonemization entirely rather
+# than hitting this same bug, and mixing in a Hebrew word for "point" would
+# route it through renikud instead with unverified results, a separate,
+# untested change beyond what this fix covers.
+_DECIMAL_POINT_WORDS = {
+    "en": "point",
+    "es": "punto",
+    "de": "Punkt",
+    "it": "punto",
+}
+
+
+def _speak_decimal_points(text: str, lang: str) -> str:
+    """Rewrite decimal numbers like '3.5' to '3 point 5' (localized per language).
+
+    espeak's number reading expands each side into words ("three", "five")
+    but keeps the literal '.' between them instead of converting it to
+    "point" -- that leftover '.' plays as a silent pause in the synthesized
+    audio, indistinguishable from a sentence break. Spelling out "point"
+    ourselves before phonemization sidesteps this entirely.
+    """
+    word = _DECIMAL_POINT_WORDS.get(lang)
+    if word is None:
+        return text
+    return _DECIMAL_RE.sub(lambda m: f"{m.group(1)} {word} {m.group(2)}", text)
+
+
 def _split_for_streaming(text: str) -> list[str]:
     """Sentence/paragraph chunks for incremental synthesis, or ``[text]`` unchanged.
 
@@ -376,6 +409,8 @@ class BlueTTSEventHandler(AsyncEventHandler):
             lang = self._resolve_language(synthesize)
             style, resolved_voice = self._resolve_style(voice_name)
             text = (synthesize.text or "").strip()
+            if self.cli_args.speak_decimal_points:
+                text = _speak_decimal_points(text, lang)
 
             _LOGGER.info(
                 "Synthesize request: voice=%s, language=%s, chars=%d",

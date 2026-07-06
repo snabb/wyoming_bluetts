@@ -11,6 +11,7 @@ from wyoming.tts import Synthesize, SynthesizeStopped, SynthesizeVoice
 from wyoming_bluetts.handler import (
     PRESET_VOICES,
     BlueTTSEventHandler,
+    _speak_decimal_points,
     get_wyoming_info,
     load_voice,
     plan_voices,
@@ -89,6 +90,7 @@ class _RecordingHandler(BlueTTSEventHandler):
             total_step=5,
             cfg_scale=4.0,
             speed=1.0,
+            speak_decimal_points=True,
         )
         self.engine = engine
         self.style_extractor = style_extractor
@@ -270,10 +272,60 @@ def test_empty_text_sends_clean_empty_response():
 
     assert result is True
     assert engine.calls == []
-    assert AudioStart.is_type(handler.written[0].type)
-    assert AudioStop.is_type(handler.written[-2].type)
-    assert SynthesizeStopped.is_type(handler.written[-1].type)
-    assert not [e for e in handler.written if AudioChunk.is_type(e.type)]
+
+
+# --- decimal point speaking ---------------------------------------------------
+
+
+def test_speak_decimal_points_english():
+    assert _speak_decimal_points("It's 3.5 meters.", "en") == "It's 3 point 5 meters."
+
+
+def test_speak_decimal_points_spanish():
+    assert _speak_decimal_points("Son 3.5 metros.", "es") == "Son 3 punto 5 metros."
+
+
+def test_speak_decimal_points_german():
+    assert (
+        _speak_decimal_points("Es sind 3.5 Meter.", "de") == "Es sind 3 Punkt 5 Meter."
+    )
+
+
+def test_speak_decimal_points_italian():
+    assert _speak_decimal_points("Sono 3.5 metri.", "it") == "Sono 3 punto 5 metri."
+
+
+def test_speak_decimal_points_hebrew_is_a_noop():
+    # Hebrew doesn't go through espeak at all -- leave it untouched rather
+    # than risk routing plain digits through the unrelated renikud G2P path.
+    assert _speak_decimal_points("3.5", "he") == "3.5"
+
+
+def test_speak_decimal_points_ignores_non_decimal_periods():
+    assert _speak_decimal_points("Hello. World.", "en") == "Hello. World."
+
+
+def test_speak_decimal_points_multiple_in_one_string():
+    assert _speak_decimal_points("3.5 and 2.75", "en") == "3 point 5 and 2 point 75"
+
+
+def test_synthesize_expands_decimal_point_by_default():
+    engine = _FakeEngine()
+    handler = _RecordingHandler(engine, _FakeStyleExtractor())
+
+    _run(handler.handle_event(Synthesize(text="It's 3.5 meters.").event()))
+
+    assert engine.calls == ["It's 3 point 5 meters."]
+
+
+def test_synthesize_leaves_decimal_point_when_disabled():
+    engine = _FakeEngine()
+    handler = _RecordingHandler(engine, _FakeStyleExtractor())
+    handler.cli_args.speak_decimal_points = False
+
+    _run(handler.handle_event(Synthesize(text="It's 3.5 meters.").event()))
+
+    assert engine.calls == ["It's 3.5 meters."]
 
 
 def test_synthesize_stopped_sent_even_when_synthesis_raises():

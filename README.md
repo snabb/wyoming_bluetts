@@ -105,6 +105,7 @@ docker build -f Dockerfile.cloning -t wyoming-bluetts:cloning .
 | `--total-step` | `5` | Flow-matching diffusion steps (quality/speed tradeoff) |
 | `--cfg-scale` | `4.0` | Classifier-free guidance scale |
 | `--speed` | `1.0` | Speech speed multiplier |
+| `--speak-decimal-points` / `--no-speak-decimal-points` | enabled | Rewrite decimals like `3.5` to `3 point 5` before synthesis (en/es/de/it only; see [Limitations](#limitations)) |
 | `--debug` | off | Verbose logging |
 
 ## Voices
@@ -142,6 +143,14 @@ the rest still work.
   playback of a multi-sentence reply starts after the first chunk rather than
   waiting for the whole thing.
 - CPU only; `use_gpu=True` is not implemented upstream yet.
+- espeak's number reading (used for en/es/de/it) expands a decimal like `3.5`
+  into the words for `3` and `5` but leaves the literal `.` between them
+  instead of converting it to a word like "point" — it plays as a silent
+  pause, easily mistaken for a sentence break. `--speak-decimal-points`
+  (on by default) rewrites decimals before synthesis to avoid this; disable
+  it with `--no-speak-decimal-points` if you'd rather hear the raw espeak
+  behavior. Hebrew is unaffected either way: it doesn't use espeak's number
+  reading at all.
 
 ## Development
 

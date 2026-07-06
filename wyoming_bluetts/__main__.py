@@ -95,6 +95,17 @@ async def main() -> None:
         default=1.0,
         help="Speech speed multiplier (default: 1.0)",
     )
+    parser.add_argument(
+        "--speak-decimal-points",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Rewrite decimal numbers like '3.5' to '3 point 5' before synthesis "
+            "(default: enabled). espeak's number reading otherwise renders the "
+            "decimal point as a literal pause instead of the word 'point'; "
+            "disable with --no-speak-decimal-points to turn this off."
+        ),
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--version", action="version", version=__version__)
 
