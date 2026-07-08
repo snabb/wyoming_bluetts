@@ -7,8 +7,8 @@ text-to-speech provider.
 
 Inspired by and partially based on
 [wyoming_pocket_tts](https://github.com/araa47/wyoming_pocket_tts), which
-this project follows for its overall structure (pip package + Home Assistant
-app packaging, event handler design).
+this project follows for its overall structure (Python package + Home
+Assistant app packaging, event handler design).
 
 ## Features
 
@@ -26,7 +26,7 @@ app packaging, event handler design).
   [Docker](#docker)).
 - **CPU only**: ONNX Runtime, no PyTorch dependency, no GPU required.
 - **Models download automatically** on first start.
-- Ships both as a pip-installable Python package and a Home Assistant app.
+- Ships both as a Python package (installable with `uv`) and a Home Assistant app.
 
 ## Quick start
 
