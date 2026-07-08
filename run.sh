@@ -88,7 +88,13 @@ send_discovery() {
     echo "Waiting for Wyoming server to be ready for discovery..."
 
     while [ $waited -lt $max_wait ]; do
-        if echo '{"type":"describe"}' | nc -w 2 localhost 10200 2>/dev/null | grep -q "bluetts"; then
+        # python3 -m wyoming_bluetts.probe, not `nc -w N`: nc doesn't exit as
+        # soon as it gets the expected response, only when the connection
+        # closes or its own idle timeout elapses -- and Wyoming connections
+        # are intentionally kept open by the server, so every nc probe paid
+        # the full idle timeout as a fixed floor regardless of how fast the
+        # real answer arrived.
+        if python3 -m wyoming_bluetts.probe 10200 2>/dev/null; then
             echo "Server is ready after ${waited}s"
             break
         fi

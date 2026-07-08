@@ -136,10 +136,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # subprocess/CLI fallback anywhere (only its unused Festival backend shells
 # out). Verified by removing espeak-ng + its deps from a running image and
 # confirming both English and Spanish synthesis still work.
-# netcat/jq/curl: healthcheck + run.sh config parsing + HA discovery POST.
+# jq/curl: run.sh config parsing + HA discovery POST.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
-    netcat-openbsd \
     jq \
     curl \
     && rm -rf /var/lib/apt/lists/* \
@@ -169,6 +168,6 @@ EXPOSE 10200
 # start-period is generous (10 min) since the model bundle downloads on first
 # run and has 8 ONNX graphs; tighten once real download times are measured.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=3 \
-    CMD echo '{"type":"describe"}' | nc -w 5 localhost 10200 | grep -q "bluetts" || exit 1
+    CMD python3 -m wyoming_bluetts.probe 10200
 
 CMD ["/run.sh"]

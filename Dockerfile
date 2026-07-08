@@ -92,7 +92,6 @@ RUN apk add --no-cache \
     openblas \
     espeak-ng \
     libsndfile \
-    netcat-openbsd \
     jq \
     curl \
     # run.sh's shebang is #!/bin/sh (POSIX, no bash-specific syntax), so
@@ -117,6 +116,6 @@ RUN mkdir -p /data/models /share/tts-voices
 EXPOSE 10200
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=3 \
-    CMD echo '{"type":"describe"}' | nc -w 5 localhost 10200 | grep -q "bluetts" || exit 1
+    CMD python3 -m wyoming_bluetts.probe 10200
 
 CMD ["/run.sh"]
