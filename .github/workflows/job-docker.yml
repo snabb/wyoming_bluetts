@@ -167,6 +167,7 @@ jobs:
                   # version/commit.
                   tags: |
                       type=raw,value=${{ matrix.variant == 'cloning' && 'latest-cloning' || 'latest' }}
+                      type=raw,value=${{ steps.version.outputs.version }}${{ matrix.variant == 'cloning' && '-cloning' || '' }}
                       type=raw,value=${{ steps.version.outputs.short_sha }}${{ matrix.variant == 'cloning' && '-cloning' || '' }}
                   # `labels` and `annotations` are separate outputs -- overriding
                   # one does NOT override the other. This job only actually
