@@ -8,6 +8,13 @@
 4. Ensure tests pass: `uv run -m pytest`
 5. Submit a PR.
 
+`uv.lock` is committed (this is an application, not a library) for
+reproducible `uv sync`/`uv run`/CI installs. The `uv-lock` pre-commit hook
+keeps it in sync with `pyproject.toml` automatically — just include it in
+your commit if the hook modifies it. Note the Dockerfiles use `uv pip
+install`, not `uv sync --frozen`, so they don't currently read this file;
+it governs local dev and CI test runs.
+
 ## Releasing a New Version
 
 The version must be updated in **three** places (keep them in sync):

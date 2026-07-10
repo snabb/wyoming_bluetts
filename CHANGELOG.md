@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.2] - 2026-07-08
 
+### Added
+
+- `uv.lock` is now committed instead of gitignored, for reproducible
+  `uv sync`/`uv run`/CI installs (this is an application, not a library).
+
 ### Fixed
 
 - CI never published a version-numbered image tag (`0.2.1`/`0.2.1-cloning`),
