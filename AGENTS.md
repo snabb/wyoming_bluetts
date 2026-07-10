@@ -66,13 +66,15 @@
   you change the tag. Keep both working; don't let one regress while
   changing the other.
 - **CI has a real smoke test, not just `pytest`**: `job-docker.yml`'s
-  `smoke-test` job pulls each published tag, waits for the container's own
-  healthcheck, then runs `.github/scripts/smoke_test.py` -- a real
-  `Synthesize` request over the Wyoming protocol, asserting non-empty audio
-  comes back. This is the only place that verifies a built image actually
-  boots and synthesizes; `job-test.yml`'s `pytest` run never touches Docker.
-  If you change `run.sh`, the healthcheck, or the synthesis path, this is
-  what would catch a regression unit tests can't see.
+  `smoke-test` matrix pulls every variant/architecture image by its untagged
+  digest on a native runner, waits for the container's own healthcheck, then
+  runs `.github/scripts/smoke_test.py` -- a real `Synthesize` request over the
+  Wyoming protocol, asserting non-empty audio comes back. Public tags are
+  created only after all four smoke tests pass. This is the only place that
+  verifies a built image actually boots and synthesizes; `job-test.yml`'s
+  `pytest` run never touches Docker. If you change `run.sh`, the healthcheck,
+  or the synthesis path, this is what would catch a regression unit tests
+  can't see.
 - **Voice cloning support is driven entirely by whether `blue_onnx.style` is
   importable, not by which Dockerfile you're looking at**: `handler.py` and
   `__main__.py` both **soft-import** it (`try`/`except ImportError`) --
