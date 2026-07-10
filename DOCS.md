@@ -21,7 +21,7 @@ Fast, local, multilingual text-to-speech using the
 |---|---|---|
 | `languages` | `en, es, de, it` | Languages to advertise (`he` also supported, not enabled by default -- see below) |
 | `default_language` | `en` | Used when a request doesn't resolve one |
-| `voices` | `female1` | Voices to preload + advertise; empty list = advertise all, load on demand |
+| `voices` | `female1` | Voices to preload + advertise; unloadable entries are omitted, and empty list = advertise all, load on demand |
 | `voices_dir` | `/share/tts-voices` | Folder for custom voice style JSON / wav samples |
 | `models_dir` | `/data/models` | Folder for the auto-downloaded ONNX model bundle (standalone Docker only; app installs should leave this at the default) |
 | `debug` | `false` | Verbose logging |

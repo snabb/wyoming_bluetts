@@ -22,6 +22,7 @@ except ImportError:
 from . import __version__, models
 from .handler import (
     BlueTTSEventHandler,
+    finalize_voice_plan,
     get_wyoming_info,
     list_custom_voice_names,
     load_voice,
@@ -233,7 +234,6 @@ async def main() -> None:
 
     configured = [v.strip() for v in (args.voices or "").split(",") if v.strip()]
     to_preload, advertise, default_voice = plan_voices(configured, custom_voice_names)
-    args.voice = default_voice
 
     voice_cache: dict = {}
     for name in dict.fromkeys(to_preload):
@@ -243,6 +243,15 @@ async def main() -> None:
             _LOGGER.info("Preloaded voice: %s", name)
         else:
             _LOGGER.error("Could not preload voice '%s'", name)
+
+    try:
+        advertise, default_voice = finalize_voice_plan(
+            configured, advertise, default_voice, voice_cache
+        )
+    except ValueError as err:
+        _LOGGER.critical("No usable default voice: %s", err)
+        sys.exit(1)
+    args.voice = default_voice
 
     _LOGGER.info(
         "Default voice: %s | preloaded %d voice(s) | advertising %d voice(s): %s | languages: %s",
