@@ -1,6 +1,6 @@
 [project]
 name = "wyoming-bluetts"
-version = "0.2.1"
+version = "0.2.2"
 description = "Wyoming protocol server for BlueTTS: local, multilingual, ONNX text-to-speech with zero-shot voice cloning"
 readme = "README.md"
 license = "MIT"

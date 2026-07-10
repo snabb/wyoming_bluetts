@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-07-08
+
+### Fixed
+
+- CI never published a version-numbered image tag (`0.2.1`/`0.2.1-cloning`),
+  only `latest`/`latest-cloning` and short-SHA tags -- Supervisor's
+  version-pinned pulls were silently broken.
+- Docker `HEALTHCHECK` and `run.sh`'s readiness probe used `nc`, which
+  doesn't exit until the connection closes or its idle timeout elapses --
+  paying a fixed 2-5s floor per probe even when the response arrived
+  instantly. Replaced with a proper Wyoming client (`wyoming_bluetts.probe`)
+  that exits as soon as it gets a response; also drops the `netcat-openbsd`
+  dependency from both Dockerfiles.
+- README contradicted itself, calling the package both "pip-installable" and
+  "must be installed with uv, not pip".
+- Silenced a ruff deprecation warning by moving `select`/`ignore` under
+  `[tool.ruff.lint]`.
+- Documented the git tag and GitHub Release steps in `CONTRIBUTING.md`,
+  missing since 0.2.1 shipped without either.
+
 ## [0.2.1] - 2026-07-06
 
 ### Added
