@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import blue_onnx
 import numpy as np
+import pytest
 from blue_onnx import Style
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.tts import Synthesize, SynthesizeStopped, SynthesizeVoice
@@ -14,6 +15,7 @@ from wyoming_bluetts.handler import (
     PRESET_VOICES,
     BlueTTSEventHandler,
     _speak_decimal_points,
+    finalize_voice_plan,
     find_custom_voice_source,
     get_wyoming_info,
     load_voice,
@@ -152,6 +154,28 @@ def test_plan_voices_empty_advertises_all_presets_plus_custom_and_defaults_to_fe
     assert to_preload == ["female1"]
     assert "rocky" in advertise
     assert set(PRESET_VOICES).issubset(set(advertise))
+
+
+def test_finalize_voice_plan_skips_configured_voices_that_failed_to_load():
+    advertise, default = finalize_voice_plan(
+        ["missing", "female1"],
+        ["missing", "female1"],
+        "missing",
+        {"female1": object()},
+    )
+
+    assert advertise == ["female1"]
+    assert default == "female1"
+
+
+def test_finalize_voice_plan_rejects_configured_set_when_none_load():
+    with pytest.raises(ValueError, match="none of the configured voices"):
+        finalize_voice_plan(["missing"], ["missing"], "missing", {})
+
+
+def test_finalize_voice_plan_requires_default_voice_in_automatic_mode():
+    with pytest.raises(ValueError, match="default voice 'female1'"):
+        finalize_voice_plan([], ["female1", "male1"], "female1", {})
 
 
 # --- get_wyoming_info ---------------------------------------------------------

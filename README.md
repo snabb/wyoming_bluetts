@@ -97,7 +97,7 @@ docker build -f Dockerfile.cloning -t wyoming-bluetts:cloning .
 |---|---|---|
 | `--host` | `0.0.0.0` | Host to bind to |
 | `--port` | `10200` | Port to bind to |
-| `--voices` | *(empty)* | Comma-separated voices to preload + advertise; empty = advertise all, load on demand |
+| `--voices` | *(empty)* | Comma-separated voices to preload + advertise (unloadable entries are omitted); empty = advertise all, load on demand |
 | `--voices-dir` | `/share/tts-voices` | Folder for custom voice style JSON / wav samples |
 | `--models-dir` | `/data/models` | Folder for the auto-downloaded ONNX model bundle |
 | `--languages` | `en,es,de,it` | Comma-separated languages to advertise |

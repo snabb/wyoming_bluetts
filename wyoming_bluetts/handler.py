@@ -149,6 +149,24 @@ def plan_voices(
     return [PRESET_VOICES[0]], advertise, PRESET_VOICES[0]
 
 
+def finalize_voice_plan(
+    configured: list[str],
+    advertise: list[str],
+    default_voice: str,
+    voice_cache: dict,
+) -> tuple[list[str], str]:
+    """Return a usable advertised/default voice plan after preloading."""
+    if configured:
+        available = [name for name in advertise if name in voice_cache]
+        if not available:
+            raise ValueError("none of the configured voices could be loaded")
+        return available, available[0]
+
+    if default_voice not in voice_cache:
+        raise ValueError(f"default voice '{default_voice}' could not be loaded")
+    return advertise, default_voice
+
+
 def _style_cache_path(voices_dir: str, name: str) -> "Path | None":
     if not name or name in {".", ".."} or Path(name).name != name:
         return None
