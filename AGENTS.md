@@ -114,6 +114,9 @@
   **every version bump there must have a matching image tag already
   published** (CI does this automatically on push) -- bump `config.yaml`'s
   version in the same commit/push as everything else, never ahead of it).
+  Keep that version and `wyoming_bluetts.__version__` equal to
+  `pyproject.toml`'s version; `tests/test_versions.py` gates image publishing
+  on this invariant.
   Known quirks if touching this file:
   - **`espeakng_loader` needs a shim** (`alpine/espeakng_loader/`):
     `blue_onnx/__init__.py` unconditionally imports the real PyPI
