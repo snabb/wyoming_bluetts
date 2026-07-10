@@ -375,8 +375,10 @@ class BlueTTSEventHandler(AsyncEventHandler):
         self.style_extractor = style_extractor
         self.voice_cache = voice_cache
 
-    def _load_voice(self, name: str) -> "Style | None":
-        return load_voice(self.style_extractor, name, self.cli_args.voices_dir)
+    async def _load_voice(self, name: str) -> "Style | None":
+        return await asyncio.to_thread(
+            load_voice, self.style_extractor, name, self.cli_args.voices_dir
+        )
 
     def _resolve_voice_name(self, synthesize: Synthesize) -> str:
         voice_name = self.cli_args.voice
@@ -401,30 +403,37 @@ class BlueTTSEventHandler(AsyncEventHandler):
             return voice.language
         return self.cli_args.default_language
 
-    def _resolve_style(self, voice_name: str) -> "tuple[Style | None, str]":
+    async def _resolve_style(self, voice_name: str) -> "tuple[Style | None, str]":
         """Look up (or load) a voice's style, falling back to the default voice."""
         style = self.voice_cache.get(voice_name)
         if style is not None:
             return style, voice_name
 
-        style = self._load_voice(voice_name)
-        if style is not None:
-            self.voice_cache[voice_name] = style
-            return style, voice_name
-
-        fallback = self.cli_args.voice
-        if fallback == voice_name:
-            return None, voice_name
-
-        _LOGGER.warning(
-            "Voice '%s' unavailable, falling back to '%s'", voice_name, fallback
-        )
-        style = self.voice_cache.get(fallback)
-        if style is None:
-            style = self._load_voice(fallback)
+        # Voice loading can run ONNX cloning inference, so keep it off the event
+        # loop and serialize it with synthesis on the shared runtime sessions.
+        async with _generation_lock():
+            style = self.voice_cache.get(voice_name)
             if style is not None:
-                self.voice_cache[fallback] = style
-        return style, fallback
+                return style, voice_name
+
+            style = await self._load_voice(voice_name)
+            if style is not None:
+                self.voice_cache[voice_name] = style
+                return style, voice_name
+
+            fallback = self.cli_args.voice
+            if fallback == voice_name:
+                return None, voice_name
+
+            _LOGGER.warning(
+                "Voice '%s' unavailable, falling back to '%s'", voice_name, fallback
+            )
+            style = self.voice_cache.get(fallback)
+            if style is None:
+                style = await self._load_voice(fallback)
+                if style is not None:
+                    self.voice_cache[fallback] = style
+            return style, fallback
 
     async def handle_event(self, event: Event) -> bool:
         """Handle Wyoming events."""
@@ -437,7 +446,7 @@ class BlueTTSEventHandler(AsyncEventHandler):
             synthesize = Synthesize.from_event(event)
             voice_name = self._resolve_voice_name(synthesize)
             lang = self._resolve_language(synthesize)
-            style, resolved_voice = self._resolve_style(voice_name)
+            style, resolved_voice = await self._resolve_style(voice_name)
             text = (synthesize.text or "").strip()
             if self.cli_args.speak_decimal_points:
                 text = _speak_decimal_points(text, lang)

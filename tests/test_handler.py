@@ -1,6 +1,8 @@
 """Tests for wyoming_bluetts handler."""
 
 import asyncio
+import threading
+import time
 from types import SimpleNamespace
 
 import blue_onnx
@@ -67,6 +69,20 @@ class _FakeStyleExtractor:
         ttl = np.zeros((1, 50, 256), dtype=np.float32)
         dp = np.zeros((1, 8, 16), dtype=np.float32)
         return Style(ttl, dp)
+
+
+class _BlockingStyleExtractor(_FakeStyleExtractor):
+    """Style extractor that blocks until a timer releases it."""
+
+    def __init__(self, release: threading.Event):
+        super().__init__()
+        self.release = release
+        self.finished_at: float | None = None
+
+    def from_wav(self, ref_wav):
+        self.release.wait(timeout=1.0)
+        self.finished_at = time.monotonic()
+        return super().from_wav(ref_wav)
 
 
 class _RecordingHandler(BlueTTSEventHandler):
@@ -235,6 +251,41 @@ def test_load_voice_wav_without_style_extractor_returns_none_gracefully(tmp_path
     """Default (no ENABLE_VOICE_CLONING) images pass style_extractor=None."""
     (tmp_path / "cloned.wav").write_bytes(b"fake wav data")
     assert load_voice(None, "cloned", str(tmp_path)) is None
+
+
+def test_uncached_voice_cloning_does_not_block_event_loop(tmp_path):
+    (tmp_path / "cloned.wav").write_bytes(b"fake wav data")
+    release = threading.Event()
+    extractor = _BlockingStyleExtractor(release)
+    handler = _RecordingHandler(
+        style_extractor=extractor,
+        engine=_FakeEngine(),
+        voices_dir=str(tmp_path),
+    )
+
+    async def run_test():
+        loop_tick_at: float | None = None
+
+        def record_loop_tick():
+            nonlocal loop_tick_at
+            loop_tick_at = time.monotonic()
+
+        loop = asyncio.get_running_loop()
+        loop.call_later(0.01, record_loop_tick)
+        timer = threading.Timer(0.1, release.set)
+        timer.start()
+        try:
+            await handler.handle_event(
+                Synthesize(text="hello", voice=SynthesizeVoice(name="cloned")).event()
+            )
+        finally:
+            timer.cancel()
+
+        assert loop_tick_at is not None
+        assert extractor.finished_at is not None
+        assert loop_tick_at < extractor.finished_at
+
+    _run(run_test())
 
 
 # --- streaming synthesis -------------------------------------------------------
