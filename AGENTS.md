@@ -89,7 +89,10 @@
   (the 3 zero-shot-cloning ONNX graphs, ~118 MB), fetching the latter only
   when `ensure_model_bundle(..., include_cloning=...)` is called with
   `include_cloning=True` (`__main__.py` passes
-  `VoiceStyleExtractor is not None`).
+  `VoiceStyleExtractor is not None`). Both the BlueTTS and Renikud downloads
+  are pinned to immutable Hugging Face revisions and verified with SHA-256;
+  update the revision and every affected digest together when changing model
+  bundles.
 - **Hebrew ("he") is not in the default `--languages`**: needs an extra
   ~20 MB G2P (renikud) model download most installs don't need. Still fully
   supported -- pass `--languages ...,he` (or the HA app's `languages` option)
