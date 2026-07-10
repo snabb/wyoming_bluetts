@@ -82,8 +82,22 @@ def _generation_lock() -> "asyncio.Lock":
 
 def find_preset_voice_path(name: str) -> "Path | None":
     """Return the bundled style JSON for a preset voice name, if any."""
-    path = _PACKAGE_VOICES_DIR / f"{name}.json"
-    return path if path.is_file() else None
+    return _voice_file_path(_PACKAGE_VOICES_DIR, name, ".json")
+
+
+def _voice_file_path(directory: Path, name: str, suffix: str) -> "Path | None":
+    """Return a voice file path only when it remains inside ``directory``."""
+    if not name or name in {".", ".."} or Path(name).name != name:
+        return None
+
+    root = directory.resolve()
+    candidate = (root / f"{name}{suffix}").resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        # Also rejects symlinks that point outside the configured voice root.
+        return None
+    return candidate if candidate.is_file() else None
 
 
 def find_custom_voice_source(voices_dir: str, name: str) -> "Path | None":
@@ -92,11 +106,11 @@ def find_custom_voice_source(voices_dir: str, name: str) -> "Path | None":
     Prefers a precomputed style JSON over a raw wav reference clip.
     """
     voices_path = Path(voices_dir)
-    json_path = voices_path / f"{name}.json"
-    if json_path.is_file():
+    json_path = _voice_file_path(voices_path, name, ".json")
+    if json_path is not None:
         return json_path
-    wav_path = voices_path / f"{name}.wav"
-    if wav_path.is_file():
+    wav_path = _voice_file_path(voices_path, name, ".wav")
+    if wav_path is not None:
         return wav_path
     return None
 
@@ -135,8 +149,17 @@ def plan_voices(
     return [PRESET_VOICES[0]], advertise, PRESET_VOICES[0]
 
 
-def _style_cache_path(voices_dir: str, name: str) -> Path:
-    return Path(voices_dir) / CACHE_SUBDIR / f"{name}.json"
+def _style_cache_path(voices_dir: str, name: str) -> "Path | None":
+    if not name or name in {".", ".."} or Path(name).name != name:
+        return None
+
+    voices_root = Path(voices_dir).resolve()
+    candidate = (voices_root / CACHE_SUBDIR / f"{name}.json").resolve()
+    try:
+        candidate.relative_to(voices_root)
+    except ValueError:
+        return None
+    return candidate
 
 
 def load_voice(
@@ -168,7 +191,11 @@ def load_voice(
 
     # .wav -> zero-shot cloning, with an on-disk cache keyed by source mtime.
     cache_path = _style_cache_path(voices_dir, name)
-    if cache_path.is_file() and cache_path.stat().st_mtime >= source.stat().st_mtime:
+    if (
+        cache_path is not None
+        and cache_path.is_file()
+        and cache_path.stat().st_mtime >= source.stat().st_mtime
+    ):
         try:
             return blue_onnx.load_voice_style([str(cache_path)])
         except Exception:
@@ -194,12 +221,15 @@ def load_voice(
         _LOGGER.exception("Failed to extract voice style from %s", source)
         return None
 
-    try:
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = payload_from_style(style, metadata={"source": str(source)})
-        cache_path.write_text(json.dumps(payload))
-    except Exception:
-        _LOGGER.warning("Failed to write voice style cache for %s", name, exc_info=True)
+    if cache_path is not None:
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = payload_from_style(style, metadata={"source": str(source)})
+            cache_path.write_text(json.dumps(payload))
+        except Exception:
+            _LOGGER.warning(
+                "Failed to write voice style cache for %s", name, exc_info=True
+            )
 
     return style
 
