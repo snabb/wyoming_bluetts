@@ -12,6 +12,7 @@ from wyoming_bluetts.handler import (
     PRESET_VOICES,
     BlueTTSEventHandler,
     _speak_decimal_points,
+    find_custom_voice_source,
     get_wyoming_info,
     load_voice,
     plan_voices,
@@ -189,6 +190,28 @@ def test_load_voice_preset_female1_loads_real_bundled_json():
 
 def test_load_voice_unknown_name_returns_none():
     assert load_voice(_FakeStyleExtractor(), "nope", "/nonexistent") is None
+
+
+def test_custom_voice_name_cannot_escape_voices_dir(tmp_path):
+    voices_dir = tmp_path / "voices"
+    voices_dir.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+
+    assert find_custom_voice_source(str(voices_dir), "../outside") is None
+    assert (
+        find_custom_voice_source(str(voices_dir), str(outside.with_suffix(""))) is None
+    )
+
+
+def test_custom_voice_symlink_cannot_escape_voices_dir(tmp_path):
+    voices_dir = tmp_path / "voices"
+    voices_dir.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+    (voices_dir / "linked.json").symlink_to(outside)
+
+    assert find_custom_voice_source(str(voices_dir), "linked") is None
 
 
 def test_custom_voice_wav_triggers_style_extractor_and_writes_cache(tmp_path):
