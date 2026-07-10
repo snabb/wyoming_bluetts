@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-07-11
+
+### Fixed
+
+- Constrained request-supplied voice names and symlinks to the configured
+  voice directories, preventing reads and cloning-cache writes outside them.
+- Moved on-demand voice loading and cloning to a worker thread under the same
+  lock as synthesis, keeping the event loop responsive and ONNX access
+  serialized.
+- Pinned the BlueTTS and Renikud model revisions and added SHA-256 verification
+  for downloaded files, replacing corrupt artifacts before startup.
+- Omit configured voices that fail to preload, use the first usable voice as
+  the default, and stop startup if no configured voice can be loaded.
+- Smoke-test both image variants on native amd64 and arm64 runners before
+  publishing `latest`, version, and short-SHA tags.
+- Enforce matching package, runtime, and Home Assistant app versions in tests.
+
 ## [0.2.2] - 2026-07-08
 
 ### Added
