@@ -175,8 +175,11 @@ async def main() -> None:
         lang for lang in requested_languages if lang in blue_onnx.AVAILABLE_LANGS
     ]
     if not requested_languages:
-        _LOGGER.warning("No valid languages configured; falling back to 'en'")
-        requested_languages = ["en"]
+        _LOGGER.warning(
+            "No valid languages configured; falling back to the default set (%s)",
+            DEFAULT_LANGUAGES,
+        )
+        requested_languages = DEFAULT_LANGUAGES.split(",")
 
     if "he" in requested_languages and not models.ensure_renikud_model(models_dir):
         _LOGGER.warning(
