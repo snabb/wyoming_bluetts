@@ -27,6 +27,21 @@ RUN apk add --no-cache \
     uv \
     git
 
+# Single source of truth for every hardcoded site-packages path below (the
+# espeakng_loader shim's COPY, the sympy/mpmath/numpy-tests cleanup, and the
+# runtime stage's COPY --from of this whole directory) -- verified against
+# the interpreter actually installed, rather than trusted blindly, so a
+# future Alpine Python bump that moves this path fails the build loudly
+# instead of silently landing the shim (or the COPY --from below) in a
+# directory Python never reads. A dynamically-derived ARG can't drive
+# COPY --from across stages the way a plain shell variable could, so this
+# is a checked constant instead of a self-adjusting one.
+ARG PYTHON_SITE_PACKAGES=/usr/lib/python3.14/site-packages
+RUN test "$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" = "$PYTHON_SITE_PACKAGES" || { \
+        echo "Alpine's Python site-packages path is no longer $PYTHON_SITE_PACKAGES -- update PYTHON_SITE_PACKAGES in Dockerfile" >&2; \
+        exit 1; \
+    }
+
 WORKDIR /app
 
 ENV UV_SYSTEM_PYTHON=1 \
@@ -35,7 +50,7 @@ ENV UV_SYSTEM_PYTHON=1 \
 
 # Shim replacing the real (glibc-only) espeakng_loader PyPI package -- see
 # alpine/espeakng_loader/__init__.py for why.
-COPY alpine/espeakng_loader /usr/lib/python3.14/site-packages/espeakng_loader
+COPY alpine/espeakng_loader $PYTHON_SITE_PACKAGES/espeakng_loader
 
 # --no-deps + explicit installs below, rather than `uv pip install -r
 # pyproject.toml`: onnxruntime and numpy must come from apk (no PyPI wheel
@@ -70,12 +85,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # numpy's own test suite is never needed at runtime either. Confirmed dead
 # weight: ~75 MB combined. (No `pip` package to strip here, unlike the main
 # Dockerfile -- uv doesn't install itself into site-packages.)
-RUN rm -rf /usr/lib/python3.14/site-packages/sympy \
-           /usr/lib/python3.14/site-packages/sympy-*.dist-info \
-           /usr/lib/python3.14/site-packages/isympy.py \
-           /usr/lib/python3.14/site-packages/mpmath \
-           /usr/lib/python3.14/site-packages/mpmath-*.dist-info \
-    && find /usr/lib/python3.14/site-packages/numpy -type d -name tests -prune -exec rm -rf {} +
+RUN rm -rf $PYTHON_SITE_PACKAGES/sympy \
+           $PYTHON_SITE_PACKAGES/sympy-*.dist-info \
+           $PYTHON_SITE_PACKAGES/isympy.py \
+           $PYTHON_SITE_PACKAGES/mpmath \
+           $PYTHON_SITE_PACKAGES/mpmath-*.dist-info \
+    && find $PYTHON_SITE_PACKAGES/numpy -type d -name tests -prune -exec rm -rf {} +
 
 # ============================================
 # RUNTIME STAGE
@@ -103,7 +118,15 @@ RUN apk add --no-cache \
     # every other dead-weight package in this project's Dockerfiles.
     && rm -rf /usr/lib/libprotoc.so* /usr/bin/protoc*
 
-COPY --from=builder /usr/lib/python3.14/site-packages /usr/lib/python3.14/site-packages
+# Same checked constant as the builder stage -- must resolve to the same
+# path there and here, since the COPY --from below assumes it does.
+ARG PYTHON_SITE_PACKAGES=/usr/lib/python3.14/site-packages
+RUN test "$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" = "$PYTHON_SITE_PACKAGES" || { \
+        echo "Alpine's Python site-packages path is no longer $PYTHON_SITE_PACKAGES -- update PYTHON_SITE_PACKAGES in Dockerfile" >&2; \
+        exit 1; \
+    }
+
+COPY --from=builder $PYTHON_SITE_PACKAGES $PYTHON_SITE_PACKAGES
 COPY --from=builder /usr/bin/wyoming-bluetts /usr/bin/
 
 WORKDIR /app
