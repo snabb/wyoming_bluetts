@@ -407,6 +407,22 @@ def test_speak_decimal_points_multiple_in_one_string():
     assert _speak_decimal_points("3.5 and 2.75", "en") == "3 point 5 and 2 point 75"
 
 
+def test_speak_decimal_points_version_string():
+    # A consuming digit-dot-digit regex would match "3.12" and leave the
+    # ".4" dot as a stray literal, reintroducing the silent-pause bug.
+    assert (
+        _speak_decimal_points("Python 3.12.4 is out", "en")
+        == "Python 3 point 12 point 4 is out"
+    )
+
+
+def test_speak_decimal_points_ip_address():
+    assert (
+        _speak_decimal_points("the IP address is 192.0.2.0", "en")
+        == "the IP address is 192 point 0 point 2 point 0"
+    )
+
+
 def test_synthesize_expands_decimal_point_by_default():
     engine = _FakeEngine()
     handler = _RecordingHandler(engine, _FakeStyleExtractor())

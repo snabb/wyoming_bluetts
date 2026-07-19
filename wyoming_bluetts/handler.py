@@ -289,7 +289,7 @@ def get_wyoming_info(
     )
 
 
-_DECIMAL_RE = re.compile(r"\b(\d+)\.(\d+)\b")
+_DECIMAL_RE = re.compile(r"(?<=\d)\.(?=\d)")
 
 # Only the espeak-routed languages: verified each renders the same "literal
 # '.' left between the two expanded number words" artifact this fixes, and
@@ -315,11 +315,19 @@ def _speak_decimal_points(text: str, lang: str) -> str:
     "point" -- that leftover '.' plays as a silent pause in the synthesized
     audio, indistinguishable from a sentence break. Spelling out "point"
     ourselves before phonemization sidesteps this entirely.
+
+    The regex matches each digit-digit '.' independently (zero-width
+    lookaround, not a consuming digit-dot-digit group) so runs of more than
+    one dot -- version strings like "3.12.4", IPv4 addresses like
+    "192.0.2.0" -- get every dot converted, not just alternating ones. A
+    consuming pattern here would eat "3.12" as one match and leave the
+    ".4" dot behind, reintroducing the exact silent-pause bug this exists
+    to fix.
     """
     word = _DECIMAL_POINT_WORDS.get(lang)
     if word is None:
         return text
-    return _DECIMAL_RE.sub(lambda m: f"{m.group(1)} {word} {m.group(2)}", text)
+    return _DECIMAL_RE.sub(f" {word} ", text)
 
 
 def _split_for_streaming(text: str) -> list[str]:
