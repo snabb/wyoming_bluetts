@@ -185,13 +185,13 @@ async def main() -> None:
         requested_languages = [lang for lang in requested_languages if lang != "he"]
 
     if args.default_language not in requested_languages:
+        fallback = "en" if "en" in requested_languages else requested_languages[0]
         _LOGGER.warning(
-            "Default language '%s' not in advertised languages; using 'en'",
+            "Default language '%s' not in advertised languages; using '%s'",
             args.default_language,
+            fallback,
         )
-        args.default_language = (
-            "en" if "en" in requested_languages else requested_languages[0]
-        )
+        args.default_language = fallback
     args.requested_languages = requested_languages
 
     # blue_onnx.TextProcessor.__init__ auto-discovers Hebrew G2P weights only via
