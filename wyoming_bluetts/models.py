@@ -75,7 +75,25 @@ def _file_matches_sha256(path: Path, expected: str) -> bool:
 
 
 def bundle_is_complete(models_dir: Path, include_cloning: bool) -> bool:
-    """Return True if every required file exists and matches its pinned hash."""
+    """Return True if every required file is present in models_dir.
+
+    Existence only, not content. SHA-256 is checked once, right after a
+    download (see ensure_model_bundle) -- that's where corruption can
+    actually be introduced. Re-hashing the whole bundle (~260-410 MB) on
+    every startup to guard against disk contents changing on their own
+    isn't warranted and is slow on e.g. SD-card storage.
+    """
+    return all(
+        (models_dir / name).is_file() for name in _required_files(include_cloning)
+    )
+
+
+def _bundle_hashes_valid(models_dir: Path, include_cloning: bool) -> bool:
+    """Return True if every required file matches its pinned SHA-256.
+
+    Used only around the download itself (pre-download cleanup of leftover
+    corrupt files, post-download verification) -- not a startup check.
+    """
     return all(
         _file_matches_sha256(models_dir / name, MODEL_FILE_SHA256[name])
         for name in _required_files(include_cloning)
@@ -121,7 +139,7 @@ def ensure_model_bundle(models_dir: Path, include_cloning: bool) -> None:
         allow_patterns=required,
     )
 
-    if not bundle_is_complete(models_dir, include_cloning):
+    if not _bundle_hashes_valid(models_dir, include_cloning):
         missing = [
             name
             for name in required
@@ -158,8 +176,12 @@ def ensure_blue_onnx_vocab() -> None:
 
 
 def renikud_is_present(models_dir: Path) -> bool:
-    """Return True if the Hebrew G2P (Renikud) model is already present."""
-    return _file_matches_sha256(models_dir / RENIKUD_FILENAME, RENIKUD_SHA256)
+    """Return True if the Hebrew G2P (Renikud) model file is already present.
+
+    Existence only -- see bundle_is_complete's docstring for why re-hashing
+    an already-downloaded file on every startup isn't warranted.
+    """
+    return (models_dir / RENIKUD_FILENAME).is_file()
 
 
 def ensure_renikud_model(models_dir: Path) -> bool:
@@ -175,8 +197,6 @@ def ensure_renikud_model(models_dir: Path) -> bool:
     _LOGGER.info("Downloading Hebrew G2P (Renikud) model from %s...", RENIKUD_URL)
     models_dir.mkdir(parents=True, exist_ok=True)
     target = models_dir / RENIKUD_FILENAME
-    if target.exists():
-        _LOGGER.warning("Replacing invalid Hebrew G2P model: %s", target)
 
     try:
         fd, tmp_path = tempfile.mkstemp(dir=str(models_dir), suffix=".part")
