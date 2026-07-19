@@ -2,7 +2,7 @@
 # Home Assistant App Configuration (Supervisor add-on manifest)
 # https://developers.home-assistant.io/docs/add-ons/configuration
 name: Wyoming BlueTTS
-version: 0.2.3
+version: 0.2.4
 slug: wyoming_bluetts
 description: >-
     Fast, local, multilingual text-to-speech using the BlueTTS ONNX model

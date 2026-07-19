@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-07-19
+
+### Fixed
+
+- `speak_decimal_points` left stray literal `.` characters (silent pauses) in
+  strings with more than one decimal point, e.g. version numbers ("3.12.4")
+  and IPv4 addresses ("192.0.2.0") -- only alternating dots were converted.
+- CI's smoke test could hang for up to GitHub's 360-minute job limit if a
+  container answered the connection but wedged mid-synthesis; reads are now
+  bounded (`asyncio.wait_for`, `timeout-minutes` on the step).
+- The default-language fallback warning logged `using 'en'` even when the
+  actual fallback was a different requested language.
+- Startup re-hashed the full model bundle (~260-410 MB) every boot; now
+  checks existence only, verifying SHA-256 solely around the download itself.
+- An explicitly emptied `languages` list fell back to English-only, unlike
+  `run.sh`'s own literal-`null` handling, which already used the full
+  default set -- both now agree.
+- Alpine Dockerfile hardcoded `/usr/lib/python3.14/site-packages` in four
+  places with no guard; a future Alpine Python bump would have silently
+  copied files to a path Python doesn't read. Build now fails loudly if the
+  path ever changes.
+- Dropped the unused `pytest-cov` dev dependency and fixed a latent test-
+  isolation issue where the module-global generation lock could bind to a
+  closed event loop from a previous test.
+
 ## [0.2.3] - 2026-07-11
 
 ### Fixed
