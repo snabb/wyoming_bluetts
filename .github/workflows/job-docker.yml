@@ -195,6 +195,7 @@ jobs:
                   exit 1
 
             - name: Real synthesis smoke test
+              timeout-minutes: 3
               run: uv run python3 .github/scripts/smoke_test.py
 
             - name: Dump container logs

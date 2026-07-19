@@ -11,6 +11,12 @@ from wyoming.audio import AudioChunk
 from wyoming.client import AsyncTcpClient
 from wyoming.tts import Synthesize, SynthesizeStopped
 
+# Bounds each individual read, not the whole synthesis: if the container
+# wedges mid-request instead of closing the connection or erroring, an
+# unbounded `read_event()` would otherwise hang until GitHub's default
+# 360-minute job timeout.
+READ_TIMEOUT_SECONDS = 120
+
 
 async def main() -> None:
     async with AsyncTcpClient("127.0.0.1", 10200) as client:
@@ -18,7 +24,16 @@ async def main() -> None:
         chunk_count = 0
         total_bytes = 0
         while True:
-            event = await client.read_event()
+            try:
+                event = await asyncio.wait_for(
+                    client.read_event(), timeout=READ_TIMEOUT_SECONDS
+                )
+            except TimeoutError:
+                print(
+                    f"No event received within {READ_TIMEOUT_SECONDS}s -- synthesis wedged",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             if event is None:
                 print("Connection closed before SynthesizeStopped", file=sys.stderr)
                 sys.exit(1)
